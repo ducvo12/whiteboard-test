@@ -4,12 +4,24 @@ export async function GET() {
     return Response.json(objects);
 }
 
-export async function POST(request: Request) {
+export async function PUT(request: Request) {
     const newItem = await request.json();
 
     objects.push(newItem);
 
     return Response.json(newItem);
+}
+
+export async function PATCH(request: Request) {
+    const { id, ...updates } = await request.json();
+
+    const index = objects.findIndex(object => object.id === id);
+
+    if (index !== -1) {
+        objects[index] = { ...objects[index], ...updates };
+    }
+
+    return Response.json(objects[index]);
 }
 
 export async function DELETE(request: Request) {

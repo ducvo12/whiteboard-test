@@ -31,7 +31,7 @@ export default function Sidebar() {
 
     async function addVal() {
         await fetch("/api/objects", {
-            method: "POST",
+            method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 id: "4",
