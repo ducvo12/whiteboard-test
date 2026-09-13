@@ -3,9 +3,6 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
-// Standardize LaTeX delimiters produced by AI models (convert \( \) and \[ \] to $ and $$).
-// Require the backslash — optional `\\?` would match ordinary ( ) / [ ] and wrap
-// them in $...$, which breaks KaTeX inside already-open math (e.g. bmatrix).
 function preprocessLaTeX(content: string) {
     if (!content) return "";
     return content
