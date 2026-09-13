@@ -75,12 +75,14 @@ export default function Sidebar() {
                 </div>
             </form>
 
-            <button onClick={addVal}>
-                add
-            </button>
-            <button onClick={deleteVal}>
-                delete
-            </button>
+            <div className="flex items-center gap-2">
+                <button onClick={addVal}>
+                    add
+                </button>
+                <button onClick={deleteVal}>
+                    delete
+                </button>
+            </div>
 
             <section className="response-section" aria-label="AI response" aria-busy={loading}>
                 <h2>Response</h2>

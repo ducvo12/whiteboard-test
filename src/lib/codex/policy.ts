@@ -1,7 +1,6 @@
 // Explicit policy for the local subscription-backed text adapter.
 // These switches reduce Codex capabilities; they are not a raw-model API mode.
 export const CODEX_POLICY_VERSION = 2;
-export const CODEX_BASE_INSTRUCTIONS = "Answer the user's message using only the text provided. You have no tools. Do not attempt tool calls or access external resources.";
 
 const disabledFeatures = [
   "shell_tool", "unified_exec", "shell_snapshot", "code_mode", "code_mode_host",
