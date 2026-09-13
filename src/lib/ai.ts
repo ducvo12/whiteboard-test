@@ -1,5 +1,5 @@
 import "server-only";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -17,7 +17,7 @@ type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => vo
 type ActiveTurn = { text: string; resolve: (text: string) => void; reject: (error: Error) => void };
 
 class CodexServer {
-  private child;
+  private child: ChildProcessWithoutNullStreams;
   readonly policyVersion = CODEX_POLICY_VERSION;
   private isolatedHome: string;
   private nextId = 0;
@@ -36,12 +36,12 @@ class CodexServer {
     this.child = spawn(binary, ["app-server", "--listen", "stdio://", ...CODEX_CONFIG_ARGS], {
       cwd: this.isolatedHome,
       env: {
-        PATH: process.env.PATH,
+        ...process.env,
         HOME: this.isolatedHome,
         CODEX_HOME: codexHome,
         TMPDIR: tmpdir(),
       },
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: "pipe",
     });
     // Drain diagnostic output without exposing credentials or prompts to the client.
     this.child.stderr.resume();
