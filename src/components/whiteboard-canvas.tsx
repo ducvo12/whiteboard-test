@@ -1,14 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-type BoardObject = {
-  id: string;
-  shape: "circle" | "rect";
-  color: string;
-  x: number;
-  y: number;
-};
+import BoardShape from "@/components/shapes/board-shape";
+import type { BoardObject } from "@/components/shapes/types";
 
 const SCALE = 1; // 1 world unit = 1px
 const GRID = 50;
@@ -19,6 +13,19 @@ export default function WhiteboardCanvas() {
   const [objects] = useState<BoardObject[]>([
     { id: "1", shape: "circle", color: "#344b2d", x: 100, y: 100 },
     { id: "2", shape: "rect", color: "#344b2d", x: 500, y: 150 },
+    {
+      id: "3",
+      shape: "polygon",
+      color: "#60794a",
+      x: 300,
+      y: 200,
+      points: [
+        { x: 300, y: 200 },
+        { x: 360, y: 220 },
+        { x: 340, y: 280 },
+        { x: 280, y: 260 },
+      ],
+    },
   ]);
 
   useEffect(() => {
@@ -44,7 +51,6 @@ export default function WhiteboardCanvas() {
 
   return (
     <section ref={ref} className="canvas" aria-label="Whiteboard canvas">
-
       <svg width={width} height={height}>
 
         {/* vertical lines */}
@@ -84,21 +90,12 @@ export default function WhiteboardCanvas() {
           ({Math.round(width / SCALE)}, {Math.round(height / SCALE)})
         </text>
 
-        {objects.map((obj) => {
-          const { sx, sy } = toScreen(obj.x, obj.y);
-          if (obj.shape === "circle") {
-            return (
-              <circle key={obj.id} cx={sx} cy={sy} r={12} fill={obj.color} />
-            );
-          } else if (obj.shape === "rect") {
-            return (
-              <rect key={obj.id} x={sx} y={sy - 24} width={24} height={24} fill={obj.color} />
-            );
-          }
-        })}
+        {/* render objects */}
+        {objects.map((obj) => (
+          <BoardShape key={obj.id} obj={obj} toScreen={toScreen} />
+        ))}
 
       </svg>
-
     </section>
   );
 }
