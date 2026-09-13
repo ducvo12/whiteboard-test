@@ -1,3 +1,71 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+
 export default function Home() {
-  return <main className="h-screen w-screen bg-white" />;
+  const [prompt, setPrompt] = useState("");
+  const [response, setResponse] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (loading || !prompt.trim()) return;
+    setLoading(true);
+    setError("");
+    setResponse("");
+    try {
+      const result = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await result.json();
+      if (!result.ok) throw new Error(data.error || "Something went wrong. Try again.");
+      setResponse(data.response);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not connect. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="workspace">
+
+      <section className="canvas" aria-label="Blank whiteboard canvas" />
+
+      <aside className="sidebar" aria-label="AI chat">
+
+        <header className="sidebar-header">
+          <div className="eyebrow">WHITEBOARD</div>
+          <h1>Ask AI</h1>
+          <p>A little space to try an idea.</p>
+        </header>
+
+        <form onSubmit={submit}>
+          <label htmlFor="prompt">Your prompt</label>
+          <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)}
+            placeholder="What are you thinking about?" maxLength={20_000} rows={6} required />
+          <div className="form-footer">
+            <span>Each prompt starts fresh</span>
+            <button type="submit" disabled={loading || !prompt.trim()}>
+              {loading ? "Thinking…" : "Send ↗"}
+            </button>
+          </div>
+        </form>
+
+        <section className="response-section" aria-label="AI response" aria-busy={loading}>
+          <h2>Response</h2>
+          <div className="response" aria-live="polite">
+            {loading ? <p className="muted">Thinking about your prompt…</p>
+              : response || <p className="muted">Your answer will appear here.</p>}
+          </div>
+          {error && <p className="error" role="alert">{error}</p>}
+        </section>
+
+      </aside>
+
+    </main>
+  );
 }
