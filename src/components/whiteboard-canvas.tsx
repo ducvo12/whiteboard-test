@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import BoardShape from "@/components/shapes/board-shape";
 import type { BoardObject } from "@/components/shapes/types";
-import { clonePageVaryPathWithNewSearchParams } from "next/dist/client/components/segment-cache/vary-path";
 
 const SCALE = 1; // 1 world unit = 1px
 const GRID = 50;
