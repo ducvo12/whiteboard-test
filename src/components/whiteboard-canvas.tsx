@@ -11,12 +11,34 @@ export default function WhiteboardCanvas() {
   const ref = useRef<HTMLElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [objects] = useState<BoardObject[]>([
-    { id: "1", shape: "circle", color: "#344b2d", x: 100, y: 100 },
-    { id: "2", shape: "rect", color: "#344b2d", x: 500, y: 150 },
+    {
+      id: "1",
+      shape: "circle",
+      strokeColor: "#344b2d",
+      fillColor: "#344b2d",
+      strokeWidth: 1,
+      r: 12,
+      x: 100,
+      y: 100,
+    },
+    {
+      id: "2",
+      shape: "rect",
+      strokeColor: "#344b2d",
+      fillColor: "#344b2d",
+      strokeWidth: 1,
+      w: 24,
+      h: 24,
+      x: 500,
+      y: 150,
+    },
     {
       id: "3",
       shape: "polygon",
-      color: "#60794a",
+      strokeColor: "#60794a",
+      fillColor: "#60794a",
+      fillOpacity: 0.5,
+      strokeWidth: 2,
       x: 300,
       y: 200,
       points: [

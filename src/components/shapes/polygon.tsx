@@ -1,4 +1,4 @@
-import type { PolygonObject, ToScreen } from "./types";
+import { shapePaint, type PolygonObject, type ToScreen } from "./types";
 
 export default function PolygonShape({
   obj,
@@ -14,5 +14,5 @@ export default function PolygonShape({
     })
     .join(" ");
 
-  return <polygon points={points} fill={obj.color} />;
+  return <polygon points={points} {...shapePaint(obj)} />;
 }

@@ -1,4 +1,4 @@
-import type { CircleObject, ToScreen } from "./types";
+import { shapePaint, type CircleObject, type ToScreen } from "./types";
 
 export default function CircleShape({
   obj,
@@ -8,5 +8,5 @@ export default function CircleShape({
   toScreen: ToScreen;
 }) {
   const { sx, sy } = toScreen(obj.x, obj.y);
-  return <circle cx={sx} cy={sy} r={obj.r ?? 12} fill={obj.color} />;
+  return <circle cx={sx} cy={sy} r={obj.r} {...shapePaint(obj)} />;
 }
