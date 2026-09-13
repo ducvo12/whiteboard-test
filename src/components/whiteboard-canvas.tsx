@@ -14,13 +14,12 @@ export default function WhiteboardCanvas() {
   const { width, height } = size;
 
   // fetch object data
+  async function getObjects() {
+    const response = await fetch("/api/objects")
+    const result = await response.json();
+    setObjects(result);
+  }
   useEffect(() => {
-    async function getObjects() {
-      const response = await fetch("/api/objects")
-      const result = await response.json();
-      setObjects(result);
-    }
-
     getObjects();
   }, []);
 
@@ -90,8 +89,14 @@ export default function WhiteboardCanvas() {
         {objects.map((obj) => (
           <BoardShape key={obj.id} obj={obj} toScreen={toScreen} />
         ))}
-
       </svg>
+
+      <button
+        onClick={getObjects}
+        className="absolute bottom-4 right-4 z-10"
+      >
+        refresh
+      </button>
     </section>
   );
 }

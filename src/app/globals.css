@@ -21,6 +21,7 @@ body {
 }
 
 .canvas {
+    position: relative;
     flex: 1;
     min-width: 0;
     background: #fff;
