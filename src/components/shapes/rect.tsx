@@ -1,10 +1,11 @@
-import { shapePaint, type RectObject, type ToScreen } from "./types";
+import { RectSchemaValue } from "@/lib/whiteboard/schemas";
+import { shapePaint, type ToScreen } from "./other-types";
 
 export default function RectShape({
   obj,
   toScreen,
 }: {
-  obj: RectObject;
+  obj: RectSchemaValue;
   toScreen: ToScreen;
 }) {
   const { sx, sy } = toScreen(obj.x, obj.y);

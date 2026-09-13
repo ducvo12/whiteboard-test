@@ -1,7 +1,9 @@
 import { objects } from "@/lib/object-data";
+import { ListObjects } from "@/lib/whiteboard/services";
 
 export async function GET() {
-    return Response.json(objects);
+    const objs = ListObjects();
+    return Response.json(objs);
 }
 
 export async function PUT(request: Request) {

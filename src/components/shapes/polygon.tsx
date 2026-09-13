@@ -1,10 +1,11 @@
-import { shapePaint, type PolygonObject, type ToScreen } from "./types";
+import { PolygonSchemaValue } from "@/lib/whiteboard/schemas";
+import { shapePaint, type ToScreen } from "./other-types";
 
 export default function PolygonShape({
   obj,
   toScreen,
 }: {
-  obj: PolygonObject;
+  obj: PolygonSchemaValue;
   toScreen: ToScreen;
 }) {
   const points = obj.points

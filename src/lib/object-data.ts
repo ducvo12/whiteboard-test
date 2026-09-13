@@ -1,4 +1,4 @@
-import type { BoardObject } from "@/components/shapes/types"
+import type { BoardObject } from "@/components/shapes/other-types"
 
 export const objects: BoardObject[] = [
     {

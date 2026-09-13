@@ -1,10 +1,11 @@
-import { shapePaint, type CircleObject, type ToScreen } from "./types";
+import { CircleSchemaValue } from "@/lib/whiteboard/schemas";
+import { shapePaint, type ToScreen } from "./other-types";
 
 export default function CircleShape({
   obj,
   toScreen,
 }: {
-  obj: CircleObject;
+  obj: CircleSchemaValue;
   toScreen: ToScreen;
 }) {
   const { sx, sy } = toScreen(obj.x, obj.y);

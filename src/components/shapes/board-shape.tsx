@@ -1,13 +1,14 @@
+import { BoardObjectSchemaValue } from "@/lib/whiteboard/schemas";
 import CircleShape from "./circle";
 import PolygonShape from "./polygon";
 import RectShape from "./rect";
-import type { BoardObject, ToScreen } from "./types";
+import type { ToScreen } from "./other-types";
 
 export default function BoardShape({
   obj,
   toScreen,
 }: {
-  obj: BoardObject;
+  obj: BoardObjectSchemaValue;
   toScreen: ToScreen;
 }) {
   switch (obj.shape) {
