@@ -29,7 +29,7 @@ export const PolygonSchema = ShapeBaseSchema.extend({
     })).min(3)
 })
 
-const BoardObjectSchema = z.discriminatedUnion("shape", [CircleSchema, RectSchema, PolygonSchema]);
+export const BoardObjectSchema = z.discriminatedUnion("shape", [CircleSchema, RectSchema, PolygonSchema]);
 
 export type ShapeBaseSchemaValue = z.infer<typeof ShapeBaseSchema>;
 export type CircleSchemaValue = z.infer<typeof CircleSchema>;

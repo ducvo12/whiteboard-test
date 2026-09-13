@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import BoardShape from "@/components/shapes/board-shape";
-import type { BoardObject } from "@/components/shapes/other-types";
+import { BoardObjectSchemaValue } from "@/lib/whiteboard/schemas";
 
 const SCALE = 1; // 1 world unit = 1px
 const GRID = 50;
@@ -10,7 +10,7 @@ const GRID = 50;
 export default function WhiteboardCanvas() {
   const ref = useRef<HTMLElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [objects, setObjects] = useState<BoardObject[]>([]);
+  const [objects, setObjects] = useState<BoardObjectSchemaValue[]>([]);
   const { width, height } = size;
 
   // fetch object data
