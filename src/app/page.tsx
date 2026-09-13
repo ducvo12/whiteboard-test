@@ -1,6 +1,6 @@
 "use client";
 
-import Sidebar from "@/components/sidebar";
+import Sidebar from "@/components/sidebar/sidebar";
 import WhiteboardCanvas from "@/components/whiteboard-canvas";
 
 export default function Home() {

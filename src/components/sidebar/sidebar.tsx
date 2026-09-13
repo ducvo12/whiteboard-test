@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import AIResponse from "./ai-response";
 
 export default function Sidebar() {
     const [prompt, setPrompt] = useState("");
@@ -52,8 +53,13 @@ export default function Sidebar() {
             <section className="response-section" aria-label="AI response" aria-busy={loading}>
                 <h2>Response</h2>
                 <div className="response" aria-live="polite">
-                    {loading ? <p className="muted">Thinking about your prompt…</p>
-                        : response || <p className="muted">Your answer will appear here.</p>}
+                    {loading ? (
+                        <p className="muted">Thinking about your prompt…</p>
+                    ) : response ? (
+                        <AIResponse content={response} />
+                    ) : (
+                        <p className="muted">Your answer will appear here.</p>
+                    )}
                 </div>
                 {error && <p className="error" role="alert">{error}</p>}
             </section>
