@@ -29,6 +29,31 @@ export default function Sidebar() {
         }
     }
 
+    async function addVal() {
+        await fetch("/api/objects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: "4",
+                shape: "rect",
+                strokeColor: "#344b2d",
+                fillColor: "#799571ff",
+                strokeWidth: 1,
+                w: 24,
+                h: 24,
+                x: 570,
+                y: 350,
+            }),
+        });
+    }
+
+    async function deleteVal() {
+        await fetch("/api/objects/", {
+            method: "DELETE",
+            body: JSON.stringify({ id: "4" }),
+        });
+    }
+
     return (
         <aside className="sidebar" aria-label="AI chat" >
 
@@ -49,6 +74,13 @@ export default function Sidebar() {
                     </button>
                 </div>
             </form>
+
+            <button onClick={addVal}>
+                add
+            </button>
+            <button onClick={deleteVal}>
+                delete
+            </button>
 
             <section className="response-section" aria-label="AI response" aria-busy={loading}>
                 <h2>Response</h2>
