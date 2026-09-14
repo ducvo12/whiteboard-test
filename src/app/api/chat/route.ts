@@ -16,8 +16,13 @@ export async function POST(request: Request) {
 
   // validate body
   let body;
-  try { body = await request.json(); }
-  catch { return Response.json({ error: "Send a valid JSON prompt." }, { status: 400 }); }
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Send a valid JSON prompt." }, { status: 400 });
+  }
+
+  // validate prompt inside body
   const prompt = body?.prompt;
   if (typeof prompt !== "string") {
     return Response.json({ error: "JSON body must have 'prompt' attribute of type string" })
