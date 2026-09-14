@@ -1,17 +1,21 @@
 import { objects } from "@/lib/object-data";
-import { ListObjects } from "@/lib/whiteboard/services";
+import { CreateObjectSchema } from "@/lib/whiteboard/schemas";
+import { createObject, listObjects } from "@/lib/whiteboard/services";
 
 export async function GET() {
-    const objs = ListObjects();
-    return Response.json(objs);
+    return Response.json([...listObjects()]);
 }
 
 export async function PUT(request: Request) {
     const newItem = await request.json();
+    const parsed = CreateObjectSchema.safeParse(newItem);
 
-    objects.push(newItem);
+    if (parsed.success) {
+        return Response.json(createObject(parsed.data));
+    } else {
+        return Response.json({ error: parsed.error }, { status: 400 })
+    }
 
-    return Response.json(newItem);
 }
 
 export async function PATCH(request: Request) {

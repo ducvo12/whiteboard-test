@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 const ShapeBaseSchema = z.object({
-    id: z.string().min(1),
     x: z.number(),
     y: z.number(),
     strokeColor: z.string().min(1),
@@ -29,10 +28,17 @@ export const PolygonSchema = ShapeBaseSchema.extend({
     })).min(3)
 })
 
-export const BoardObjectSchema = z.discriminatedUnion("shape", [CircleSchema, RectSchema, PolygonSchema]);
+const StoredShapeSchema = z.object({
+    id: z.string().min(1),
+});
 
 export type ShapeBaseSchemaValue = z.infer<typeof ShapeBaseSchema>;
 export type CircleSchemaValue = z.infer<typeof CircleSchema>;
 export type RectSchemaValue = z.infer<typeof RectSchema>;
 export type PolygonSchemaValue = z.infer<typeof PolygonSchema>;
-export type BoardObjectSchemaValue = z.infer<typeof BoardObjectSchema>;
+
+export const CreateObjectSchema = z.discriminatedUnion("shape", [CircleSchema, RectSchema, PolygonSchema]);
+export type CreateObjectSchemaValue = z.infer<typeof CreateObjectSchema>;
+
+export const StoredObjectSchema = z.intersection(StoredShapeSchema, CreateObjectSchema)
+export type StoredObjectSchemaValue = z.infer<typeof StoredObjectSchema>;
