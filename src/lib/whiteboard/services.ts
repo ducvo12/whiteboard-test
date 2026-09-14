@@ -14,3 +14,13 @@ export function createObject(input: CreateObjectSchemaValue) {
 
     return obj;
 }
+
+export function deleteObject(id: string) {
+    const index = objects.findIndex((obj) => obj.id === id);
+
+    if (index === -1) return { success: false, message: "Object not found" };
+
+    objects.splice(index, 1);
+
+    return { success: true };
+}
