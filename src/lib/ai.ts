@@ -6,10 +6,11 @@ const BASE_INSTRUCTIONS =
   "You have no tools. " +
   "Do not attempt tool calls or access external resources.";
 
-export async function generateResponse(prompt: string, signal: AbortSignal): Promise<string> {
+export async function generateResponse(prompt: string, signal: AbortSignal, onDelta?: (delta: string) => void): Promise<string> {
   return askCodex({
     instructions: BASE_INSTRUCTIONS,
     prompt,
     signal,
+    onDelta,
   });
 }

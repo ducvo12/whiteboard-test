@@ -19,9 +19,25 @@ export default function Sidebar() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt }),
             });
-            const data = await result.json();
-            if (!result.ok) throw new Error(data.error || "Something went wrong. Try again.");
-            setResponse(data.response);
+
+            if (!result.ok) {
+                const data = await result.json();
+                throw new Error(data.error || "Something went wrong. Try again.");
+            }
+            if (!result.body) throw new Error("No response stream. Try again.");
+
+            const reader = result.body.pipeThrough(new TextDecoderStream()).getReader();
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    setResponse((text) => text + value);
+                }
+            } catch {
+                throw new Error("The response was interrupted. Check codex login status and try again.");
+            } finally {
+                reader.releaseLock();
+            }
         } catch (error) {
             setError(error instanceof Error ? error.message : "Could not connect. Try again.");
         } finally {
@@ -87,10 +103,10 @@ export default function Sidebar() {
             <section className="response-section" aria-label="AI response" aria-busy={loading}>
                 <h2>Response</h2>
                 <div className="response" aria-live="polite">
-                    {loading ? (
-                        <p className="muted">Thinking about your prompt…</p>
-                    ) : response ? (
+                    {response ? (
                         <AIResponse content={response} />
+                    ) : loading ? (
+                        <p className="muted">Thinking about your prompt…</p>
                     ) : (
                         <p className="muted">Your answer will appear here.</p>
                     )}

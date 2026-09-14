@@ -11,15 +11,16 @@ type TurnResult = { status: string; error?: { message: string } | null };
 type Message = {
   id?: number; method?: string; result?: unknown;
   error?: { message: string };
-  params?: { threadId?: string; item?: { type: string; text?: string }; turn?: TurnResult };
+  params?: { delta?: string; threadId?: string; item?: { type: string; text?: string }; turn?: TurnResult };
 };
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void };
-type ActiveTurn = { text: string; resolve: (text: string) => void; reject: (error: Error) => void };
+type ActiveTurn = { onDelta?: (delta: string) => void; text: string; resolve: (text: string) => void; reject: (error: Error) => void };
 
 export type CodexRequest = {
   instructions: string;
   prompt: string;
   signal: AbortSignal;
+  onDelta?: (delta: string) => void;
 };
 
 class CodexServer {
@@ -112,6 +113,9 @@ class CodexServer {
     }
     const turn = params?.threadId ? this.turns.get(params.threadId) : undefined;
     if (!turn) return;
+    if (message.method === "item/agentMessage/delta" && params?.delta) {
+      turn.onDelta?.(params.delta);
+    }
     if (message.method === "item/completed" && params?.item?.type === "agentMessage") {
       turn.text = params.item.text || "";
     }
@@ -131,7 +135,7 @@ class CodexServer {
     this.turns.clear();
   }
 
-  async answer({ instructions, prompt, signal }: CodexRequest) {
+  async answer({ instructions, prompt, signal, onDelta }: CodexRequest) {
     await this.ready;
     signal.throwIfAborted();
     const directory = await mkdtemp(join(tmpdir(), "whiteboard-chat-"));
@@ -155,7 +159,7 @@ class CodexServer {
           if (error) reject(error);
           else resolve(text!);
         };
-        this.turns.set(threadId!, { text: "", resolve: (text) => finish(undefined, text), reject: finish });
+        this.turns.set(threadId!, { text: "", onDelta, resolve: (text) => finish(undefined, text), reject: finish });
         signal.addEventListener("abort", abort, { once: true });
         void this.request("turn/start", {
           threadId, input: [{ type: "text", text: prompt }],
