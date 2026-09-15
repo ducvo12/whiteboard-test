@@ -1,6 +1,6 @@
-import type { BoardObject } from "@/components/shapes/types"
+import { StoredObjectSchemaValue } from "./whiteboard/schemas";
 
-export const objects: BoardObject[] = [
+export const objects: StoredObjectSchemaValue[] = [
     {
         id: "1",
         shape: "circle",

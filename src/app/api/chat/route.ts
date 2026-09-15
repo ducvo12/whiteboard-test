@@ -1,4 +1,4 @@
-import { generateResponse } from "@/lib/ai";
+import { generateResponse } from "@/lib/agent/ai";
 
 export const runtime = "nodejs";
 
@@ -16,26 +16,42 @@ export async function POST(request: Request) {
 
   // validate body
   let body;
-  try { body = await request.json(); }
-  catch { return Response.json({ error: "Send a valid JSON prompt." }, { status: 400 }); }
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Send a valid JSON prompt." }, { status: 400 });
+  }
+
+  // validate prompt inside body
   const prompt = body?.prompt;
   if (typeof prompt !== "string") {
-    return Response.json({ error: "JSON body must have 'prompt' attribute of type string" })
+    return Response.json({ error: "JSON body must have 'prompt' attribute of type string" }, { status: 400 })
   }
   const promptTrim = prompt.trim()
   if (!promptTrim.trim() || promptTrim.length > 20_000) {
     return Response.json({ error: "Enter a prompt between 1 and 20,000 characters." }, { status: 400 });
   }
 
-  // call codex
-  try {
-    return Response.json({ response: await generateResponse(promptTrim.trim(), request.signal) });
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    return Response.json({
-      error: code === "ENOENT"
-        ? "Codex was not found. Install the Codex CLI or set CODEX_BIN in .env.local."
-        : "Codex could not finish. Check codex login status, sign in with codex login if needed, and try again. Requests time out after 2 minutes."
-    }, { status: 502 });
-  }
+  // call ai
+  const encoder = new TextEncoder();
+  const cancellation = new AbortController();
+  const signal = AbortSignal.any([request.signal, cancellation.signal]);
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        await generateResponse(promptTrim, signal, (delta) => {
+          if (!signal.aborted) controller.enqueue(encoder.encode(delta));
+        });
+        if (!signal.aborted) controller.close();
+      } catch {
+        controller.error(new Error("Codex could not finish. Try again."));
+      }
+    },
+    cancel() {
+      cancellation.abort();
+    },
+  });
+  return new Response(stream, {
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+  });
 }

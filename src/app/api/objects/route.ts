@@ -1,15 +1,20 @@
 import { objects } from "@/lib/object-data";
+import { CreateObjectSchema } from "@/lib/whiteboard/schemas";
+import { createObject, deleteObject, listObjects } from "@/lib/whiteboard/services";
 
 export async function GET() {
-    return Response.json(objects);
+    return Response.json([...listObjects()]);
 }
 
 export async function PUT(request: Request) {
     const newItem = await request.json();
+    const parsed = CreateObjectSchema.safeParse(newItem);
 
-    objects.push(newItem);
-
-    return Response.json(newItem);
+    if (parsed.success) {
+        return Response.json(createObject(parsed.data).shape);
+    } else {
+        return Response.json({ error: parsed.error }, { status: 400 })
+    }
 }
 
 export async function PATCH(request: Request) {
@@ -27,11 +32,15 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
     const { id } = await request.json();
 
-    const index = objects.findIndex(object => object.id === id);
-
-    if (index !== -1) {
-        objects.splice(index, 1);
+    if (typeof id !== "string" || !id) {
+        return Response.json({ error: "request must have id value of type string" }, { status: 400 });
     }
 
-    return Response.json({ success: true });
+    const response = deleteObject(id);
+
+    if (response.success) {
+        return Response.json(response);
+    } else {
+        return Response.json({ error: response.message }, { status: 400 });
+    }
 }
