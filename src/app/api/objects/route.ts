@@ -11,7 +11,7 @@ export async function PUT(request: Request) {
     const parsed = CreateObjectSchema.safeParse(newItem);
 
     if (parsed.success) {
-        return Response.json(createObject(parsed.data));
+        return Response.json(createObject(parsed.data).shape);
     } else {
         return Response.json({ error: parsed.error }, { status: 400 })
     }

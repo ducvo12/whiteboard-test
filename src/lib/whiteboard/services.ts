@@ -12,7 +12,10 @@ export function createObject(input: CreateObjectSchemaValue) {
     }
     objects.push(obj);
 
-    return obj;
+    return {
+        message: "shape created",
+        shape: obj
+    };
 }
 
 export function deleteObject(id: string) {

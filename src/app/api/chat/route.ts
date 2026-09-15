@@ -1,4 +1,4 @@
-import { generateResponse } from "@/lib/ai";
+import { generateResponse } from "@/lib/agent/ai";
 
 export const runtime = "nodejs";
 

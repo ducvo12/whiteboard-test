@@ -1,5 +1,8 @@
 import { FormEvent, useState } from "react";
 import AIResponse from "./ai-response";
+import z from "zod";
+import { CreateObjectSchema } from "@/lib/whiteboard/schemas";
+import { toolDescriptions } from "@/lib/agent/tools";
 
 export default function Sidebar() {
     const [prompt, setPrompt] = useState("");
@@ -45,7 +48,12 @@ export default function Sidebar() {
         }
     }
 
+    //console.log(JSON.stringify(z.toJSONSchema(CreateObjectSchema), null, 2));
+    //console.log();
+    //console.log(JSON.stringify(toolDescriptions, null, 2))
+
     async function addVal() {
+        /*
         await fetch("/api/objects", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -61,6 +69,9 @@ export default function Sidebar() {
                 y: 350,
             }),
         });
+        */
+
+
     }
 
     async function deleteVal() {
