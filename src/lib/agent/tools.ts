@@ -17,7 +17,7 @@ export interface Tool {
 export const toolDescriptions: Tool[] = [
     {
         tool_name: "get_shapes",
-        tool_description: "gets a list of all shapes currently on the whiteboard",
+        tool_description: "returns a list of all shapes currently on the whiteboard",
         arguments: z.toJSONSchema(NoArgumentsSchema),
         inputSchema: NoArgumentsSchema,
         execute: listObjects,
