@@ -2,9 +2,26 @@ import "server-only";
 
 import { z } from "zod";
 import { CreateObjectSchema } from "../whiteboard/schemas";
-import { createObject } from "../whiteboard/services";
+import { createObject, listObjects } from "../whiteboard/services";
 
-export const toolDescriptions = [
+const NoArgumentsSchema = z.strictObject({});
+
+export interface Tool {
+    tool_name: string;
+    tool_description: string;
+    arguments: Record<string, any>;
+    inputSchema: z.ZodType<any>;
+    execute: (args?: any) => any;
+}
+
+export const toolDescriptions: Tool[] = [
+    {
+        tool_name: "get_shapes",
+        tool_description: "gets a list of all shapes currently on the whiteboard",
+        arguments: z.toJSONSchema(NoArgumentsSchema),
+        inputSchema: NoArgumentsSchema,
+        execute: listObjects,
+    },
     {
         tool_name: "add_shape",
         tool_description: "adds a either a rect, circle, or polygon to the canvas",

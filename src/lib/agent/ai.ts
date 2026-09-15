@@ -57,7 +57,7 @@ If you decide that the status is either "success" or "failure", you may use mark
 `;
 
 export async function generateResponse(prompt: string, signal: AbortSignal, sendDelta?: (delta: string) => void): Promise<string> {
-  const messages: { role: String, content: String }[] = [];
+  const messages: { role: String, content: unknown }[] = [];
 
   let response = "";
 
@@ -120,11 +120,14 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
       for (const tool of toolCallJson.res) {
 
         // validate array object format
-        if (!tool.tool_name || !tool.arguments) {
+        if (!tool.tool_name || !("arguments" in tool)) {
           messages.push({
             role: "error3",
             content: "error3"
           });
+          console.log()
+          console.log(JSON.stringify(tool, null, 2))
+          console.log()
           break;
         }
 
@@ -138,11 +141,21 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
           break;
         }
 
+        // validate arguments
+        const argumentParse = specificTool.inputSchema.safeParse(tool.arguments);
+        if (!argumentParse.success) {
+          messages.push({
+            role: "error5",
+            content: "error5"
+          });
+          break;
+        }
+
         // call tool
-        const ret = specificTool.execute(tool.arguments);
+        const ret = specificTool.execute(argumentParse.data);
         messages.push({
           role: "server",
-          content: JSON.stringify(ret, null, 2)
+          content: ret
         })
 
       }

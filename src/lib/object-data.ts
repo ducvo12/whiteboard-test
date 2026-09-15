@@ -1,5 +1,8 @@
 import { StoredObjectSchemaValue } from "./whiteboard/schemas";
 
+export const objects: StoredObjectSchemaValue[] = []
+
+/*
 export const objects: StoredObjectSchemaValue[] = [
     {
         id: "1",
@@ -39,3 +42,4 @@ export const objects: StoredObjectSchemaValue[] = [
         ],
     },
 ];
+*/
