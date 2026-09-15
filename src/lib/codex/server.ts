@@ -55,7 +55,10 @@ class CodexServer {
     const lines = createInterface({ input: this.child.stdout });
     lines.on("line", (line) => {
       try { this.receive(JSON.parse(line)); }
-      catch { this.stop(new Error("Invalid Codex server response.")); }
+      catch (error) {
+        console.error("Codex response processing failed:", error);
+        this.stop(new Error("Invalid Codex server response.", { cause: error }));
+      }
     });
     this.child.on("error", (error) => this.stop(error));
     this.child.on("exit", () => {

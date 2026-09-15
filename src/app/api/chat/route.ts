@@ -43,8 +43,9 @@ export async function POST(request: Request) {
           if (!signal.aborted) controller.enqueue(encoder.encode(delta));
         });
         if (!signal.aborted) controller.close();
-      } catch {
-        controller.error(new Error("Codex could not finish. Try again."));
+      } catch (error) {
+        console.error("generateResponse failed:", error);
+        controller.error(new Error("Codex could not finish. Try again.", { cause: error }));
       }
     },
     cancel() {
