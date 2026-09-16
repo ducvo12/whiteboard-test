@@ -164,7 +164,9 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
 
         // call tool
         console.log(tool.tool_name);
-        //console.log(argumentParse.data)
+        console.log(argumentParse.data);
+        console.log();
+
         const ret = specificTool.execute(argumentParse.data);
         messages.push({
           role: "tool_call_result",

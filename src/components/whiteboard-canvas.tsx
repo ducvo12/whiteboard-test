@@ -7,6 +7,24 @@ import { StoredObjectSchemaValue } from "@/lib/whiteboard/schemas";
 const SCALE = 1; // 1 world unit = 1px
 const GRID = 50;
 const GRID_PX = GRID * SCALE;
+const AXIS_EXTENT = 50000;
+
+function screenToWorld(
+  sx: number,
+  sy: number,
+  panX: number,
+  panY: number,
+  viewH: number,
+) {
+  return {
+    x: (sx - panX) / SCALE,
+    y: (viewH - sy + panY) / SCALE,
+  };
+}
+
+function formatWorld(x: number, y: number) {
+  return `(${Math.round(x)}, ${Math.round(y)})`;
+}
 
 type DragState = {
   pointerId: number;
@@ -19,6 +37,8 @@ type DragState = {
 export default function WhiteboardCanvas() {
   const ref = useRef<HTMLElement>(null);
   const worldRef = useRef<SVGGElement>(null);
+  const originLabelRef = useRef<SVGTextElement>(null);
+  const extentLabelRef = useRef<SVGTextElement>(null);
   const panRef = useRef({ x: 0, y: 0 });
   const dragRef = useRef<DragState | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -48,13 +68,25 @@ export default function WhiteboardCanvas() {
     return () => ro.disconnect();
   }, []);
 
+  function syncCornerLabels(panX: number, panY: number, viewW: number, viewH: number) {
+    const origin = screenToWorld(0, viewH, panX, panY, viewH);
+    const extent = screenToWorld(viewW, 0, panX, panY, viewH);
+    const originLabel = originLabelRef.current;
+    const extentLabel = extentLabelRef.current;
+    if (originLabel) originLabel.textContent = formatWorld(origin.x, origin.y);
+    if (extentLabel) extentLabel.textContent = formatWorld(extent.x, extent.y);
+  }
+
   function applyPan(x: number, y: number) {
     panRef.current = { x, y };
     worldRef.current?.setAttribute("transform", `translate(${x} ${y})`);
     const canvas = ref.current;
+    const viewW = canvas?.clientWidth ?? width;
+    const viewH = canvas?.clientHeight ?? height;
     if (canvas) {
-      canvas.style.backgroundPosition = `${x}px ${y + (canvas.clientHeight % GRID_PX)}px`;
+      canvas.style.backgroundPosition = `${x}px ${y + (viewH % GRID_PX)}px`;
     }
+    syncCornerLabels(x, y, viewW, viewH);
   }
 
   function endPan(el: HTMLElement, pointerId: number) {
@@ -106,6 +138,8 @@ export default function WhiteboardCanvas() {
   }
 
   const { x: panX, y: panY } = panRef.current;
+  const origin = screenToWorld(0, height, panX, panY, height);
+  const extent = screenToWorld(width, 0, panX, panY, height);
 
   return (
     <section
@@ -125,22 +159,45 @@ export default function WhiteboardCanvas() {
     >
       <svg width={width} height={height}>
         <g ref={worldRef} transform={`translate(${panX} ${panY})`}>
-          <text x={8} y={height - 8} fill="#858c7e" fontSize={12}>
-            (0, 0)
-          </text>
+          <line
+            x1={-AXIS_EXTENT}
+            y1={height}
+            x2={AXIS_EXTENT}
+            y2={height}
+            stroke="#ccc"
+            strokeWidth={2}
+          />
+          <line
+            x1={0}
+            y1={-AXIS_EXTENT}
+            x2={0}
+            y2={AXIS_EXTENT}
+            stroke="#ccc"
+            strokeWidth={2}
+          />
           {objects.map((obj) => (
             <BoardShape key={obj.id} obj={obj} toScreen={toScreen} />
           ))}
         </g>
 
         <text
+          ref={originLabelRef}
+          x={8}
+          y={height - 8}
+          fill="#858c7e"
+          fontSize={12}
+        >
+          {formatWorld(origin.x, origin.y)}
+        </text>
+        <text
+          ref={extentLabelRef}
           x={width - 8}
           y={16}
           fill="#858c7e"
           fontSize={12}
           textAnchor="end"
         >
-          ({Math.round(width / SCALE)}, {Math.round(height / SCALE)})
+          {formatWorld(extent.x, extent.y)}
         </text>
       </svg>
 
