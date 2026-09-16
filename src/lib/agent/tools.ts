@@ -33,5 +33,12 @@ export const toolDescriptions: Tool[] = [
         arguments: z.toJSONSchema(DeleteObjectSchema),
         inputSchema: DeleteObjectSchema,
         execute: deleteObject
+    },
+    {
+        tool_name: "get_corner_coordinates",
+        tool_description: "get coordinates of bottom-left and top-right of exposed screen",
+        arguments: z.toJSONSchema(NoArgumentsSchema),
+        inputSchema: NoArgumentsSchema,
+        execute: getCoordinates
     }
 ]

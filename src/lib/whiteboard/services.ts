@@ -27,3 +27,7 @@ export function deleteObject(input: DeleteObjectSchemaValue) {
 
     return { success: true };
 }
+
+export function getCoordinates(input: NoArgumentsSchemaValue) {
+    return "test"
+}
