@@ -163,6 +163,7 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
         }
 
         // call tool
+        console.log(tool.name)
         const ret = specificTool.execute(argumentParse.data);
         messages.push({
           role: "tool_call_result",
@@ -172,8 +173,6 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
 
       }
     }
-
-    console.log(status)
 
     // break when done
     if (status === "success" || status === "failure") {
