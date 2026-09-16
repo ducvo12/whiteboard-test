@@ -47,3 +47,6 @@ export const DeleteObjectSchema = z.strictObject({
     id: z.string().min(1)
 })
 export type DeleteObjectSchemaValue = z.infer<typeof DeleteObjectSchema>;
+
+export const NoArgumentsSchema = z.strictObject({});
+export type NoArgumentsSchemaValue = z.infer<typeof NoArgumentsSchema>;

@@ -163,13 +163,14 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
         }
 
         // call tool
-        console.log(tool.name)
+        console.log(tool.tool_name);
+        //console.log(argumentParse.data)
         const ret = specificTool.execute(argumentParse.data);
         messages.push({
           role: "tool_call_result",
           specific: tool.tool_name,
           content: ret
-        })
+        });
 
       }
     }
@@ -177,6 +178,7 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
     // break when done
     if (status === "success" || status === "failure") {
       console.log();
+      console.log("messages");
       console.log(JSON.stringify(messages, null, 1))
       console.log();
 

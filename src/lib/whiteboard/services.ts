@@ -1,7 +1,7 @@
 import { objects } from "../object-data";
-import { CreateObjectSchemaValue, DeleteObjectSchemaValue, StoredObjectSchemaValue } from "./schemas";
+import { CreateObjectSchemaValue, DeleteObjectSchemaValue, NoArgumentsSchemaValue, StoredObjectSchemaValue } from "./schemas";
 
-export function listObjects() {
+export function listObjects(input: NoArgumentsSchemaValue) {
     return objects;
 }
 

@@ -3,7 +3,7 @@ import { CreateObjectSchema, DeleteObjectSchema } from "@/lib/whiteboard/schemas
 import { createObject, deleteObject, listObjects } from "@/lib/whiteboard/services";
 
 export async function GET() {
-    return Response.json([...listObjects()]);
+    return Response.json([...listObjects({})]);
 }
 
 export async function PUT(request: Request) {

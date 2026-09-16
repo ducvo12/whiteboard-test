@@ -1,10 +1,8 @@
 import "server-only";
 
 import { z } from "zod";
-import { CreateObjectSchema, DeleteObjectSchema } from "../whiteboard/schemas";
-import { createObject, deleteObject, listObjects } from "../whiteboard/services";
-
-const NoArgumentsSchema = z.strictObject({});
+import { CreateObjectSchema, DeleteObjectSchema, NoArgumentsSchema } from "../whiteboard/schemas";
+import { createObject, deleteObject, getCoordinates, listObjects } from "../whiteboard/services";
 
 export interface Tool {
     tool_name: string;
