@@ -50,6 +50,17 @@ Sample tool call:
   ]
 }
 
+The whiteboard uses a Cartesian coordinate system, not screen/SVG coordinates:
+- Origin (0, 0) is the bottom-left corner.
+- X increases to the right.
+- Y increases upward. A larger y is visually above; a smaller y is visually below.
+- Do not invert y. "Above" means increase y. "Below" means decrease y.
+
+Shape anchors in this same system:
+- rect: (x, y) is the bottom-left corner. The rectangle occupies x..x+w and y..y+h.
+- circle: (x, y) is the center.
+- polygon: each entry in points is an absolute world vertex.
+
 If you decide that the status is either "success" or "failure", you may use markdown formatting, including bold, lists, etc.
 
 - Put your entire answer in res.
