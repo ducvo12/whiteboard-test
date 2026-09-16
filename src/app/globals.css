@@ -26,10 +26,18 @@ body {
     min-width: 0;
     background: #fff;
     overflow: hidden;
+    user-select: none;
+    touch-action: none;
+    cursor: grab;
+}
+
+.canvas.is-panning {
+    cursor: grabbing;
 }
 
 .canvas svg {
     display: block;
+    cursor: inherit;
 }
 
 .sidebar {
