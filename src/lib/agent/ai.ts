@@ -163,12 +163,13 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
     }
 
     console.log(status)
-    console.log();
-    console.log(JSON.stringify(messages))
-    console.log();
 
     // break when done
     if (status === "success" || status === "failure") {
+      console.log();
+      console.log(JSON.stringify(messages, null, 1))
+      console.log();
+
       break;
     }
   }
