@@ -1,6 +1,6 @@
 import { objects } from "@/lib/object-data";
-import { CreateObjectSchema, DeleteObjectSchema } from "@/lib/whiteboard/schemas";
-import { createObject, deleteObject, listObjects } from "@/lib/whiteboard/services";
+import { BoardObjectSchema, DeleteObjectSchema } from "@/lib/whiteboard/schemas";
+import { createObject, createTextbox, deleteObject, listObjects } from "@/lib/whiteboard/services";
 
 export async function GET() {
     return Response.json([...listObjects({})]);
@@ -8,13 +8,17 @@ export async function GET() {
 
 export async function PUT(request: Request) {
     const newItem = await request.json();
-    const parsed = CreateObjectSchema.safeParse(newItem);
+    const parsed = BoardObjectSchema.safeParse(newItem);
 
-    if (parsed.success) {
-        return Response.json(createObject(parsed.data).shape);
-    } else {
+    if (!parsed.success) {
         return Response.json({ error: parsed.error }, { status: 400 })
     }
+
+    const created = parsed.data.shape === "textbox"
+        ? createTextbox(parsed.data)
+        : createObject(parsed.data);
+
+    return Response.json(created.shape);
 }
 
 export async function PATCH(request: Request) {

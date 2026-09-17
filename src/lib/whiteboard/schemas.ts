@@ -28,6 +28,15 @@ export const PolygonSchema = ShapeBaseSchema.extend({
     })).min(3).describe("Absolute world vertices. Y increases upward, so a vertex with a larger y is visually above one with a smaller y.")
 }).describe("Polygon. Drawn from points in world coordinates (y-up). (x, y) should match the first point.");
 
+export const TextboxSchema = ShapeBaseSchema.extend({
+    shape: z.literal("textbox"),
+    w: z.number().positive(),
+    h: z.number().positive(),
+    text: z.string().min(1).describe("Text shown inside the box."),
+    fontSize: z.number().positive().describe("Font size in world units (same space as w and h)."),
+    textColor: z.string().min(1),
+}).describe("Textbox. (x, y) is the bottom-left corner in world coordinates (y-up). The box extends right by w and up by h. Text is drawn inside that box.");
+
 const StoredShapeSchema = z.object({
     id: z.string().min(1),
 });
@@ -36,11 +45,15 @@ export type ShapeBaseSchemaValue = z.infer<typeof ShapeBaseSchema>;
 export type CircleSchemaValue = z.infer<typeof CircleSchema>;
 export type RectSchemaValue = z.infer<typeof RectSchema>;
 export type PolygonSchemaValue = z.infer<typeof PolygonSchema>;
+export type TextboxSchemaValue = z.infer<typeof TextboxSchema>;
 
 export const CreateObjectSchema = z.discriminatedUnion("shape", [CircleSchema, RectSchema, PolygonSchema]);
 export type CreateObjectSchemaValue = z.infer<typeof CreateObjectSchema>;
 
-export const StoredObjectSchema = z.intersection(StoredShapeSchema, CreateObjectSchema)
+export const BoardObjectSchema = z.discriminatedUnion("shape", [CircleSchema, RectSchema, PolygonSchema, TextboxSchema]);
+export type BoardObjectSchemaValue = z.infer<typeof BoardObjectSchema>;
+
+export const StoredObjectSchema = z.intersection(StoredShapeSchema, BoardObjectSchema)
 export type StoredObjectSchemaValue = z.infer<typeof StoredObjectSchema>;
 
 export const DeleteObjectSchema = z.strictObject({

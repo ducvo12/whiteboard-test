@@ -1,8 +1,8 @@
 import "server-only";
 
 import { z } from "zod";
-import { CreateObjectSchema, DeleteObjectSchema, NoArgumentsSchema } from "../whiteboard/schemas";
-import { createObject, deleteObject, getCoordinates, listObjects } from "../whiteboard/services";
+import { CreateObjectSchema, DeleteObjectSchema, NoArgumentsSchema, TextboxSchema } from "../whiteboard/schemas";
+import { createObject, createTextbox, deleteObject, getCoordinates, listObjects } from "../whiteboard/services";
 
 export interface Tool {
     tool_name: string;
@@ -26,6 +26,13 @@ export const toolDescriptions: Tool[] = [
         arguments: z.toJSONSchema(CreateObjectSchema),
         inputSchema: CreateObjectSchema,
         execute: createObject
+    },
+    {
+        tool_name: "add_textbox",
+        tool_description: "adds a textbox to the canvas.",
+        arguments: z.toJSONSchema(TextboxSchema),
+        inputSchema: TextboxSchema,
+        execute: createTextbox
     },
     {
         tool_name: "delete_object",

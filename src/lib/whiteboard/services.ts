@@ -1,5 +1,5 @@
 import { objects } from "../object-data";
-import { CreateObjectSchemaValue, DeleteObjectSchemaValue, NoArgumentsSchemaValue, StoredObjectSchemaValue } from "./schemas";
+import { CreateObjectSchemaValue, DeleteObjectSchemaValue, NoArgumentsSchemaValue, StoredObjectSchemaValue, TextboxSchemaValue } from "./schemas";
 
 export function listObjects(input: NoArgumentsSchemaValue) {
     return objects;
@@ -14,6 +14,19 @@ export function createObject(input: CreateObjectSchemaValue) {
 
     return {
         message: "shape created",
+        shape: obj
+    };
+}
+
+export function createTextbox(input: TextboxSchemaValue) {
+    const obj: StoredObjectSchemaValue = {
+        id: crypto.randomUUID(),
+        ...input
+    }
+    objects.push(obj);
+
+    return {
+        message: "textbox created",
         shape: obj
     };
 }

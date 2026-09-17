@@ -64,7 +64,7 @@ export function objectBounds(obj: StoredObjectSchemaValue): Bounds {
       maxY: obj.y + obj.r,
     };
   }
-  if (obj.shape === "rect") {
+  if (obj.shape === "rect" || obj.shape === "textbox") {
     return {
       minX: obj.x,
       minY: obj.y,
