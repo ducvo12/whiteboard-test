@@ -1,155 +1,208 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import BoardShape from "@/components/shapes/board-shape";
+import CanvasHud from "@/components/canvas-hud";
 import { StoredObjectSchemaValue } from "@/lib/whiteboard/schemas";
+import {
+  AXIS_EXTENT,
+  GRID,
+  ZOOM_STEP,
+  type Camera,
+  cameraToFit,
+  formatWorld,
+  screenToWorld,
+  unionBounds,
+  zoomAtScreenPoint,
+} from "@/lib/whiteboard/geometry";
 
-const SCALE = 1; // 1 world unit = 1px
-const GRID = 50;
-const GRID_PX = GRID * SCALE;
-const AXIS_EXTENT = 50000;
+const MOBILE_QUERY = "(max-width: 720px)";
+const POLL_MS = 800;
 
-function screenToWorld(
-  sx: number,
-  sy: number,
-  panX: number,
-  panY: number,
-  viewH: number,
-) {
-  return {
-    x: (sx - panX) / SCALE,
-    y: (viewH - sy + panY) / SCALE,
-  };
-}
-
-function formatWorld(x: number, y: number) {
-  return `(${Math.round(x)}, ${Math.round(y)})`;
-}
-
-type DragState = {
-  pointerId: number;
-  startX: number;
-  startY: number;
-  panX: number;
-  panY: number;
-};
-
-export default function WhiteboardCanvas() {
-  const ref = useRef<HTMLElement>(null);
-  const worldRef = useRef<SVGGElement>(null);
-  const originLabelRef = useRef<SVGTextElement>(null);
-  const extentLabelRef = useRef<SVGTextElement>(null);
-  const panRef = useRef({ x: 0, y: 0 });
-  const dragRef = useRef<DragState | null>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  const [objects, setObjects] = useState<StoredObjectSchemaValue[]>([]);
-  const { width, height } = size;
-
-  // fetch object data
-  async function getObjects() {
-    const response = await fetch("/api/objects");
-    const result = await response.json();
-    setObjects(result);
+function panelInsets(chatOpen: boolean, viewH: number) {
+  if (!chatOpen) return { right: 0, bottom: 0 };
+  if (window.matchMedia(MOBILE_QUERY).matches) {
+    return { right: 0, bottom: 12 + Math.min(viewH * 0.62, 560) };
   }
-  useEffect(() => {
-    getObjects();
-  }, []);
+  return { right: 352, bottom: 0 };
+}
 
-  // update size when canvas resizes
+export default function WhiteboardCanvas({
+  agentWorking,
+  chatOpen,
+}: {
+  agentWorking: boolean;
+  chatOpen: boolean;
+}) {
+  const boardRef = useRef<HTMLElement>(null);
+  const cameraRef = useRef<Camera>({ panX: 0, panY: 0, zoom: 1 });
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
+
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [camera, setCamera] = useState<Camera>({ panX: 0, panY: 0, zoom: 1 });
+  const [objects, setObjects] = useState<StoredObjectSchemaValue[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  const { width, height } = size;
+  const { panX, panY, zoom } = camera;
+
   useEffect(() => {
-    const el = ref.current;
+    cameraRef.current = camera;
+  }, [camera]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const response = await fetch("/api/objects");
+        const result = await response.json();
+        if (!cancelled && Array.isArray(result)) setObjects(result);
+      } catch {
+        // Keep the last board if a poll fails.
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    }
+
+    load();
+    if (!agentWorking) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const id = window.setInterval(load, POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [agentWorking]);
+
+  useLayoutEffect(() => {
+    const el = boardRef.current;
     if (!el) return;
 
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setSize({ width, height });
-    });
+    const measure = () =>
+      setSize({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  function syncCornerLabels(panX: number, panY: number, viewW: number, viewH: number) {
-    const origin = screenToWorld(0, viewH, panX, panY, viewH);
-    const extent = screenToWorld(viewW, 0, panX, panY, viewH);
-    const originLabel = originLabelRef.current;
-    const extentLabel = extentLabelRef.current;
-    if (originLabel) originLabel.textContent = formatWorld(origin.x, origin.y);
-    if (extentLabel) extentLabel.textContent = formatWorld(extent.x, extent.y);
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+
+    function onWheel(event: WheelEvent) {
+      event.preventDefault();
+      const node = boardRef.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const next = zoomAtScreenPoint(
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        cameraRef.current.zoom *
+          (event.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP),
+        cameraRef.current,
+        node.clientHeight,
+      );
+      cameraRef.current = next;
+      setCamera(next);
+    }
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function zoomAround(sx: number, sy: number, nextZoom: number) {
+    const viewH = boardRef.current?.clientHeight ?? height;
+    setCamera(zoomAtScreenPoint(sx, sy, nextZoom, camera, viewH));
   }
 
-  function applyPan(x: number, y: number) {
-    panRef.current = { x, y };
-    worldRef.current?.setAttribute("transform", `translate(${x} ${y})`);
-    const canvas = ref.current;
-    const viewW = canvas?.clientWidth ?? width;
-    const viewH = canvas?.clientHeight ?? height;
-    if (canvas) {
-      canvas.style.backgroundPosition = `${x}px ${y + (viewH % GRID_PX)}px`;
-    }
-    syncCornerLabels(x, y, viewW, viewH);
-  }
-
-  function endPan(el: HTMLElement, pointerId: number) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== pointerId) return;
-    dragRef.current = null;
-    if (el.hasPointerCapture(pointerId)) {
-      el.releasePointerCapture(pointerId);
-    }
-    el.classList.remove("is-panning");
-    worldRef.current?.style.removeProperty("will-change");
+  function visibleCenter() {
+    const viewW = boardRef.current?.clientWidth ?? width;
+    const viewH = boardRef.current?.clientHeight ?? height;
+    const inset = panelInsets(chatOpen, viewH);
+    return {
+      sx: (viewW - inset.right) / 2,
+      sy: (viewH - inset.bottom) / 2,
+    };
   }
 
   function onPointerDown(e: React.PointerEvent<HTMLElement>) {
     if (e.button !== 0) return;
-    if (e.target instanceof Element && e.target.closest("button")) return;
+    if (e.target instanceof Element && e.target.closest("button, .canvas-hud")) {
+      return;
+    }
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = {
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
-      panX: panRef.current.x,
-      panY: panRef.current.y,
+      panX: camera.panX,
+      panY: camera.panY,
     };
     e.currentTarget.classList.add("is-panning");
-    worldRef.current?.style.setProperty("will-change", "transform");
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLElement>) {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
-    applyPan(
-      drag.panX + (e.clientX - drag.startX),
-      drag.panY + (e.clientY - drag.startY),
-    );
+    setCamera((current) => ({
+      ...current,
+      panX: drag.panX + (e.clientX - drag.startX),
+      panY: drag.panY + (e.clientY - drag.startY),
+    }));
   }
 
   function onPointerUp(e: React.PointerEvent<HTMLElement>) {
-    endPan(e.currentTarget, e.pointerId);
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    e.currentTarget.classList.remove("is-panning");
   }
 
-  // convert world coordinates to screen coordinates
   function toScreen(x: number, y: number) {
-    return {
-      sx: x * SCALE,
-      sy: height - y * SCALE,
-    };
+    return { sx: x * zoom, sy: height - y * zoom };
   }
 
-  const { x: panX, y: panY } = panRef.current;
-  const origin = screenToWorld(0, height, panX, panY, height);
-  const extent = screenToWorld(width, 0, panX, panY, height);
+  function onFit() {
+    const viewW = boardRef.current?.clientWidth ?? width;
+    const viewH = boardRef.current?.clientHeight ?? height;
+    const bounds = unionBounds(objects);
+    if (!bounds) {
+      setCamera({ panX: 0, panY: 0, zoom: 1 });
+      return;
+    }
+    const inset = panelInsets(chatOpen, viewH);
+    setCamera(cameraToFit(bounds, viewW, viewH, inset.right, inset.bottom));
+  }
+
+  const origin = screenToWorld(0, height, camera, height);
+  const extent = screenToWorld(width, 0, camera, height);
+  const gridPx = GRID * zoom;
 
   return (
     <section
-      ref={ref}
+      ref={boardRef}
       className="canvas"
       aria-label="Whiteboard canvas"
       style={{
-        backgroundImage: `linear-gradient(#eee 1px, transparent 1px), linear-gradient(90deg, #eee 1px, transparent 1px)`,
-        backgroundSize: `${GRID_PX}px ${GRID_PX}px`,
-        backgroundPosition: `${panX}px ${panY + (height % GRID_PX)}px`,
+        backgroundImage: `radial-gradient(circle at 0 0, rgba(31, 36, 28, 0.14) 1px, transparent 1.6px)`,
+        backgroundSize: `${gridPx}px ${gridPx}px`,
+        backgroundPosition: `${panX}px ${height + panY}px`,
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -157,56 +210,62 @@ export default function WhiteboardCanvas() {
       onPointerCancel={onPointerUp}
       onLostPointerCapture={onPointerUp}
     >
+      {agentWorking && <div className="canvas-pulse" aria-hidden="true" />}
+
       <svg width={width} height={height}>
-        <g ref={worldRef} transform={`translate(${panX} ${panY})`}>
+        <g transform={`translate(${panX} ${panY})`}>
           <line
-            x1={-AXIS_EXTENT}
+            className="axis-line"
+            x1={-AXIS_EXTENT * zoom}
             y1={height}
-            x2={AXIS_EXTENT}
+            x2={AXIS_EXTENT * zoom}
             y2={height}
-            stroke="#ccc"
-            strokeWidth={2}
           />
           <line
+            className="axis-line"
             x1={0}
-            y1={-AXIS_EXTENT}
+            y1={height - AXIS_EXTENT * zoom}
             x2={0}
-            y2={AXIS_EXTENT}
-            stroke="#ccc"
-            strokeWidth={2}
+            y2={height + AXIS_EXTENT * zoom}
           />
           {objects.map((obj) => (
-            <BoardShape key={obj.id} obj={obj} toScreen={toScreen} />
+            <BoardShape key={obj.id} obj={obj} toScreen={toScreen} zoom={zoom} />
           ))}
         </g>
-
-        <text
-          ref={originLabelRef}
-          x={8}
-          y={height - 8}
-          fill="#858c7e"
-          fontSize={12}
-        >
-          {formatWorld(origin.x, origin.y)}
-        </text>
-        <text
-          ref={extentLabelRef}
-          x={width - 8}
-          y={16}
-          fill="#858c7e"
-          fontSize={12}
-          textAnchor="end"
-        >
-          {formatWorld(extent.x, extent.y)}
-        </text>
       </svg>
 
-      <button
-        onClick={getObjects}
-        className="absolute bottom-4 right-4 z-10"
-      >
-        refresh
-      </button>
+      {loaded && objects.length === 0 && (
+        <p className="canvas-empty">
+          {agentWorking
+            ? "Working on the board…"
+            : "Ask AI to put something here."}
+        </p>
+      )}
+
+      {agentWorking && objects.length > 0 && (
+        <div className="working-chip">Working on the board…</div>
+      )}
+
+      <div className="coord-origin">{formatWorld(origin.x, origin.y)}</div>
+      <div className="coord-extent">{formatWorld(extent.x, extent.y)}</div>
+
+      <CanvasHud
+        zoom={zoom}
+        onZoomIn={() => {
+          const { sx, sy } = visibleCenter();
+          zoomAround(sx, sy, camera.zoom * ZOOM_STEP);
+        }}
+        onZoomOut={() => {
+          const { sx, sy } = visibleCenter();
+          zoomAround(sx, sy, camera.zoom / ZOOM_STEP);
+        }}
+        onResetZoom={() => {
+          const { sx, sy } = visibleCenter();
+          zoomAround(sx, sy, 1);
+        }}
+        onFit={onFit}
+        onOrigin={() => setCamera({ panX: 0, panY: 0, zoom: 1 })}
+      />
     </section>
   );
 }

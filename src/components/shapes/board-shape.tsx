@@ -7,16 +7,18 @@ import type { ToScreen } from "./other-types";
 export default function BoardShape({
   obj,
   toScreen,
+  zoom,
 }: {
   obj: StoredObjectSchemaValue;
   toScreen: ToScreen;
+  zoom: number;
 }) {
   switch (obj.shape) {
     case "circle":
-      return <CircleShape obj={obj} toScreen={toScreen} />;
+      return <CircleShape obj={obj} toScreen={toScreen} zoom={zoom} />;
     case "rect":
-      return <RectShape obj={obj} toScreen={toScreen} />;
+      return <RectShape obj={obj} toScreen={toScreen} zoom={zoom} />;
     case "polygon":
-      return <PolygonShape obj={obj} toScreen={toScreen} />;
+      return <PolygonShape obj={obj} toScreen={toScreen} zoom={zoom} />;
   }
 }

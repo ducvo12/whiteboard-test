@@ -4,9 +4,11 @@ import { shapePaint, type ToScreen } from "./other-types";
 export default function PolygonShape({
   obj,
   toScreen,
+  zoom,
 }: {
   obj: PolygonSchemaValue;
   toScreen: ToScreen;
+  zoom: number;
 }) {
   const points = obj.points
     .map((p) => {
@@ -15,5 +17,5 @@ export default function PolygonShape({
     })
     .join(" ");
 
-  return <polygon points={points} {...shapePaint(obj)} />;
+  return <polygon points={points} {...shapePaint(obj, zoom)} />;
 }

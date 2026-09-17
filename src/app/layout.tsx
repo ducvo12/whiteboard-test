@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
+import { Geist } from "next/font/google";
 import "./globals.css";
 import "katex/dist/katex.min.css";
+
+const geist = Geist({
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Whiteboard",
@@ -9,8 +15,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
-      <body className="m-0 overflow-hidden">{children}</body>
+    <html lang="en" className={geist.className}>
+      <body>{children}</body>
     </html>
   );
 }

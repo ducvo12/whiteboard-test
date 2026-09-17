@@ -4,18 +4,20 @@ import { shapePaint, type ToScreen } from "./other-types";
 export default function RectShape({
   obj,
   toScreen,
+  zoom,
 }: {
   obj: RectSchemaValue;
   toScreen: ToScreen;
+  zoom: number;
 }) {
   const { sx, sy } = toScreen(obj.x, obj.y);
   return (
     <rect
       x={sx}
-      y={sy - obj.h}
-      width={obj.w}
-      height={obj.h}
-      {...shapePaint(obj)}
+      y={sy - obj.h * zoom}
+      width={obj.w * zoom}
+      height={obj.h * zoom}
+      {...shapePaint(obj, zoom)}
     />
   );
 }
