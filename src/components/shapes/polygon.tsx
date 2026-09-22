@@ -1,4 +1,4 @@
-import { PolygonSchemaValue } from "@/lib/whiteboard/schemas";
+import { PolygonSchemaType } from "@/lib/whiteboard/schemas";
 import { shapePaint, type ToScreen } from "./other-types";
 
 export default function PolygonShape({
@@ -6,7 +6,7 @@ export default function PolygonShape({
   toScreen,
   zoom,
 }: {
-  obj: PolygonSchemaValue;
+  obj: PolygonSchemaType;
   toScreen: ToScreen;
   zoom: number;
 }) {

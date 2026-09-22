@@ -1,4 +1,4 @@
-import { StoredObjectSchemaValue } from "./schemas";
+import { StoredObjectSchemaType } from "./schemas";
 
 export const GRID = 50;
 export const MIN_ZOOM = 0.1;
@@ -55,7 +55,7 @@ export function zoomAtScreenPoint(
   };
 }
 
-export function objectBounds(obj: StoredObjectSchemaValue): Bounds {
+export function objectBounds(obj: StoredObjectSchemaType): Bounds {
   if (obj.shape === "circle") {
     return {
       minX: obj.x - obj.r,
@@ -82,7 +82,7 @@ export function objectBounds(obj: StoredObjectSchemaValue): Bounds {
   };
 }
 
-export function unionBounds(objects: StoredObjectSchemaValue[]): Bounds | null {
+export function unionBounds(objects: StoredObjectSchemaType[]): Bounds | null {
   if (objects.length === 0) return null;
   return objects.reduce<Bounds>((bounds, obj) => {
     const next = objectBounds(obj);

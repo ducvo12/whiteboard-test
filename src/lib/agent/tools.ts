@@ -1,8 +1,8 @@
 import "server-only";
 
 import { z } from "zod";
-import { CreateObjectSchema, DeleteObjectSchema, NoArgumentsSchema, TextboxSchema } from "../whiteboard/schemas";
-import { createObject, createTextbox, deleteObject, getCoordinates, listObjects } from "../whiteboard/services";
+import { CreateShapeSchema, DeleteObjectSchema, NoArgumentsSchema, TextboxSchema, UpdateObjectSchema } from "../whiteboard/schemas";
+import { createShape, createTextbox, deleteObject, getCoordinates, listObjects, updateObject } from "../whiteboard/services";
 
 export interface Tool {
     tool_name: string;
@@ -23,9 +23,9 @@ export const toolDescriptions: Tool[] = [
     {
         tool_name: "add_shape",
         tool_description: "adds either a rect, circle, or polygon to the canvas.",
-        arguments: z.toJSONSchema(CreateObjectSchema),
-        inputSchema: CreateObjectSchema,
-        execute: createObject
+        arguments: z.toJSONSchema(CreateShapeSchema),
+        inputSchema: CreateShapeSchema,
+        execute: createShape
     },
     {
         tool_name: "add_textbox",
@@ -40,6 +40,13 @@ export const toolDescriptions: Tool[] = [
         arguments: z.toJSONSchema(DeleteObjectSchema),
         inputSchema: DeleteObjectSchema,
         execute: deleteObject
+    },
+    {
+        tool_name: "update_object",
+        tool_description: "update an object with a given id",
+        arguments: z.toJSONSchema(UpdateObjectSchema),
+        inputSchema: UpdateObjectSchema,
+        execute: updateObject
     },
     {
         tool_name: "get_corner_coordinates",

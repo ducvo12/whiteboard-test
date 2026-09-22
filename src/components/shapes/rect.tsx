@@ -1,4 +1,4 @@
-import { RectSchemaValue } from "@/lib/whiteboard/schemas";
+import { RectSchemaType } from "@/lib/whiteboard/schemas";
 import { shapePaint, type ToScreen } from "./other-types";
 
 export default function RectShape({
@@ -6,7 +6,7 @@ export default function RectShape({
   toScreen,
   zoom,
 }: {
-  obj: RectSchemaValue;
+  obj: RectSchemaType;
   toScreen: ToScreen;
   zoom: number;
 }) {

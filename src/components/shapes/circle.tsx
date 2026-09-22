@@ -1,4 +1,4 @@
-import { CircleSchemaValue } from "@/lib/whiteboard/schemas";
+import { CircleSchemaType } from "@/lib/whiteboard/schemas";
 import { shapePaint, type ToScreen } from "./other-types";
 
 export default function CircleShape({
@@ -6,7 +6,7 @@ export default function CircleShape({
   toScreen,
   zoom,
 }: {
-  obj: CircleSchemaValue;
+  obj: CircleSchemaType;
   toScreen: ToScreen;
   zoom: number;
 }) {

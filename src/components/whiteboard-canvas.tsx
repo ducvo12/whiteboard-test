@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import BoardShape from "@/components/shapes/board-shape";
 import CanvasHud from "@/components/canvas-hud";
-import { StoredObjectSchemaValue } from "@/lib/whiteboard/schemas";
+import { StoredObjectSchemaType } from "@/lib/whiteboard/schemas";
 import {
   AXIS_EXTENT,
   GRID,
@@ -46,7 +46,7 @@ export default function WhiteboardCanvas({
 
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [camera, setCamera] = useState<Camera>({ panX: 0, panY: 0, zoom: 1 });
-  const [objects, setObjects] = useState<StoredObjectSchemaValue[]>([]);
+  const [objects, setObjects] = useState<StoredObjectSchemaType[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   const { width, height } = size;
@@ -110,7 +110,7 @@ export default function WhiteboardCanvas({
         event.clientX - rect.left,
         event.clientY - rect.top,
         cameraRef.current.zoom *
-          (event.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP),
+        (event.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP),
         cameraRef.current,
         node.clientHeight,
       );

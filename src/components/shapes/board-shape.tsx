@@ -1,4 +1,4 @@
-import { StoredObjectSchemaValue } from "@/lib/whiteboard/schemas";
+import { StoredObjectSchemaType } from "@/lib/whiteboard/schemas";
 import CircleShape from "./circle";
 import PolygonShape from "./polygon";
 import RectShape from "./rect";
@@ -10,7 +10,7 @@ export default function BoardShape({
   toScreen,
   zoom,
 }: {
-  obj: StoredObjectSchemaValue;
+  obj: StoredObjectSchemaType;
   toScreen: ToScreen;
   zoom: number;
 }) {

@@ -1,6 +1,6 @@
-import { StoredObjectSchemaValue } from "./whiteboard/schemas";
+import { StoredObjectSchemaType } from "./whiteboard/schemas";
 
-export const objects: StoredObjectSchemaValue[] = []
+export const objects: StoredObjectSchemaType[] = []
 
 /*
 export const objects: StoredObjectSchemaValue[] = [

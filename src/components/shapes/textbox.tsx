@@ -1,4 +1,4 @@
-import { TextboxSchemaValue } from "@/lib/whiteboard/schemas";
+import { TextboxSchemaType } from "@/lib/whiteboard/schemas";
 import { shapePaint, type ToScreen } from "./other-types";
 
 export default function TextboxShape({
@@ -6,7 +6,7 @@ export default function TextboxShape({
   toScreen,
   zoom,
 }: {
-  obj: TextboxSchemaValue;
+  obj: TextboxSchemaType;
   toScreen: ToScreen;
   zoom: number;
 }) {
