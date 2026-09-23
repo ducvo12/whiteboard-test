@@ -14,7 +14,7 @@ export function createShape(input: CreateShapeSchemaType) {
 
     return {
         message: "shape created",
-        shape: obj
+        obj: obj
     };
 }
 
@@ -27,7 +27,7 @@ export function createTextbox(input: TextboxSchemaType) {
 
     return {
         message: "textbox created",
-        shape: obj
+        obj: obj
     };
 }
 
