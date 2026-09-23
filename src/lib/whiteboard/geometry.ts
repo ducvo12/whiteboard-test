@@ -56,7 +56,7 @@ export function zoomAtScreenPoint(
 }
 
 export function objectBounds(obj: StoredObjectSchemaType): Bounds {
-  if (obj.shape === "circle") {
+  if (obj.object === "circle") {
     return {
       minX: obj.x - obj.r,
       minY: obj.y - obj.r,
@@ -64,7 +64,7 @@ export function objectBounds(obj: StoredObjectSchemaType): Bounds {
       maxY: obj.y + obj.r,
     };
   }
-  if (obj.shape === "rect" || obj.shape === "textbox") {
+  if (obj.object === "rect" || obj.object === "textbox") {
     return {
       minX: obj.x,
       minY: obj.y,

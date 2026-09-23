@@ -14,7 +14,7 @@ export default function BoardShape({
   toScreen: ToScreen;
   zoom: number;
 }) {
-  switch (obj.shape) {
+  switch (obj.object) {
     case "circle":
       return <CircleShape obj={obj} toScreen={toScreen} zoom={zoom} />;
     case "rect":
