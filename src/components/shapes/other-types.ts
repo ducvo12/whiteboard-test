@@ -7,6 +7,6 @@ export function shapePaint(obj: ShapeBaseSchemaType, zoom = 1) {
     fill: obj.fillColor,
     fillOpacity: obj.fillOpacity ?? 1,
     stroke: obj.strokeColor,
-    strokeWidth: Math.max(obj.strokeWidth * zoom, 0.5),
+    strokeWidth: obj.strokeWidth,
   };
 }
