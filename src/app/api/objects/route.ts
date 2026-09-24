@@ -1,6 +1,5 @@
-import { objects } from "@/lib/object-data";
-import { BoardObjectSchema, DeleteObjectSchema } from "@/lib/whiteboard/schemas";
-import { createShape, createTextbox, deleteObject, listObjects } from "@/lib/whiteboard/services";
+import { BoardObjectSchema, DeleteObjectSchema, UpdateObjectSchema } from "@/lib/whiteboard/schemas";
+import { createShape, createTextbox, deleteObject, listObjects, updateObject } from "@/lib/whiteboard/services";
 
 export async function GET() {
     return Response.json([...listObjects({})]);
@@ -22,15 +21,21 @@ export async function PUT(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-    const { id, ...updates } = await request.json();
+    const updateObjectRequest = await request.json();
 
-    const index = objects.findIndex(object => object.id === id);
+    const parsed = UpdateObjectSchema.safeParse(updateObjectRequest);
 
-    if (index !== -1) {
-        objects[index] = { ...objects[index], ...updates };
+    if (parsed.success) {
+        const response = updateObject(parsed.data);
+
+        if (response.success) {
+            return Response.json(response);
+        } else {
+            return Response.json({ error: response.message }, { status: 400 });
+        }
+    } else {
+        return Response.json({ error: parsed.error }, { status: 400 });
     }
-
-    return Response.json(objects[index]);
 }
 
 export async function DELETE(request: Request) {
