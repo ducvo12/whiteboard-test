@@ -91,12 +91,18 @@ const PolygonUpdateSchema = PolygonSchema
     .partial()
     .strict();
 
+const TextboxUpdateSchema = TextboxSchema
+    .omit({ object: true })
+    .partial()
+    .strict();
+
 export const UpdateObjectSchema = z.object({
     id: z.string().min(1),
     patch: z.union([
         RectUpdateSchema,
         CircleUpdateSchema,
         PolygonUpdateSchema,
+        TextboxUpdateSchema,
     ]),
 });
 
