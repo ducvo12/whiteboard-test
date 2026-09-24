@@ -50,6 +50,8 @@ Sample tool call:
   ]
 }
 
+Once a mutation succeeds, do not mutate the same property again for the same user instruction unless the user explicitly requested iteration or the tool reported failure.
+
 The whiteboard uses a Cartesian coordinate system, not screen/SVG coordinates:
 - Origin (0, 0) is the bottom-left corner.
 - X increases to the right.
@@ -69,7 +71,7 @@ If you decide that the status is either "success" or "failure", you may use mark
 `;
 
 export async function generateResponse(prompt: string, signal: AbortSignal, sendDelta?: (delta: string) => void): Promise<string> {
-  const messages: { role: String, specific?: String, content: unknown }[] = [];
+  const messages: { role: String, specific?: String, call_id?: String, content: unknown }[] = [];
 
   let response = "";
 
@@ -128,6 +130,15 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
         break;
       }
 
+      // add tool call id
+      for (const tool of toolCallJson.res) {
+        tool.call_id = `call_${crypto.randomUUID()}`;
+      }
+      messages.push({
+        role: "assistant",
+        content: toolCallJson.res
+      })
+
       // loop through tools
       for (const tool of toolCallJson.res) {
 
@@ -172,6 +183,7 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
         messages.push({
           role: "tool_call_result",
           specific: tool.tool_name,
+          call_id: tool.call_id,
           content: ret
         });
 
