@@ -1,4 +1,5 @@
 import { StoredObjectSchemaType } from "@/lib/whiteboard/schemas";
+import ArrowShape from "./arrow";
 import CircleShape from "./circle";
 import PolygonShape from "./polygon";
 import RectShape from "./rect";
@@ -21,6 +22,8 @@ export default function BoardShape({
       return <RectShape obj={obj} toScreen={toScreen} zoom={zoom} />;
     case "polygon":
       return <PolygonShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+    case "arrow":
+      return <ArrowShape obj={obj} toScreen={toScreen} zoom={zoom} />;
     case "textbox":
       return <TextboxShape obj={obj} toScreen={toScreen} zoom={zoom} />;
   }

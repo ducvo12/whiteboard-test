@@ -64,6 +64,15 @@ export function objectBounds(obj: StoredObjectSchemaType): Bounds {
       maxY: obj.y + obj.r,
     };
   }
+  if (obj.object === "arrow") {
+    const pad = 8;
+    return {
+      minX: Math.min(obj.x, obj.x2) - pad,
+      minY: Math.min(obj.y, obj.y2) - pad,
+      maxX: Math.max(obj.x, obj.x2) + pad,
+      maxY: Math.max(obj.y, obj.y2) + pad,
+    };
+  }
   if (obj.object === "rect" || obj.object === "textbox") {
     return {
       minX: obj.x,

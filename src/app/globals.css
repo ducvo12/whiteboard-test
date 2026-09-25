@@ -212,11 +212,20 @@ textarea:focus-visible {
     stroke-dasharray: 4 3;
 }
 
-.scale-handle {
+.scale-handle,
+.endpoint-handle {
     fill: var(--paper-raised);
     stroke: var(--olive);
     stroke-width: 1.5;
     stroke-dasharray: none;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 80ms ease;
+}
+
+.scale-handle:hover,
+.endpoint-handle:hover {
+    transform: scale(1.7);
 }
 
 .textbox-editor {

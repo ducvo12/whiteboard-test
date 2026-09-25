@@ -21,6 +21,7 @@ const MOBILE_QUERY = "(max-width: 720px)";
 const POLL_MS = 800;
 const MIN_SIZE = 12;
 const HANDLE_PX = 12;
+const END_HIT_PX = 8;
 
 const PAINT = {
   strokeColor: "#344b2d",
@@ -43,6 +44,13 @@ type Gesture =
       id: string;
       startWorldX: number;
       startWorldY: number;
+      orig: StoredObjectSchemaType;
+    }
+  | {
+      kind: "aim";
+      pointerId: number;
+      id: string;
+      end: "tail" | "head";
       orig: StoredObjectSchemaType;
     };
 
@@ -70,6 +78,15 @@ function hitObject(worldX: number, worldY: number, objects: StoredObjectSchemaTy
 }
 
 function movedObject(orig: StoredObjectSchemaType, dx: number, dy: number): StoredObjectSchemaType {
+  if (orig.object === "arrow") {
+    return {
+      ...orig,
+      x: orig.x + dx,
+      y: orig.y + dy,
+      x2: orig.x2 + dx,
+      y2: orig.y2 + dy,
+    };
+  }
   if (orig.object === "polygon") {
     return {
       ...orig,
@@ -85,6 +102,20 @@ function scaledObject(orig: StoredObjectSchemaType, worldX: number, worldY: numb
   if (orig.object === "circle") {
     const r = Math.max(MIN_SIZE, Math.hypot(worldX - orig.x, worldY - orig.y));
     return { ...orig, r };
+  }
+
+  if (orig.object === "arrow") {
+    const cx = (orig.x + orig.x2) / 2;
+    const cy = (orig.y + orig.y2) / 2;
+    const start = Math.hypot(orig.x2 - cx, orig.y2 - cy) || 1;
+    const scale = Math.max(MIN_SIZE / start, Math.hypot(worldX - cx, worldY - cy) / start);
+    return {
+      ...orig,
+      x: cx + (orig.x - cx) * scale,
+      y: cy + (orig.y - cy) * scale,
+      x2: cx + (orig.x2 - cx) * scale,
+      y2: cy + (orig.y2 - cy) * scale,
+    };
   }
 
   if (orig.object === "polygon") {
@@ -109,6 +140,7 @@ function scaledObject(orig: StoredObjectSchemaType, worldX: number, worldY: numb
 function geometryPatch(obj: StoredObjectSchemaType) {
   if (obj.object === "circle") return { x: obj.x, y: obj.y, r: obj.r };
   if (obj.object === "polygon") return { x: obj.x, y: obj.y, points: obj.points };
+  if (obj.object === "arrow") return { x: obj.x, y: obj.y, x2: obj.x2, y2: obj.y2 };
   return { x: obj.x, y: obj.y, w: obj.w, h: obj.h };
 }
 
@@ -301,6 +333,17 @@ export default function WhiteboardCanvas({
       });
       return;
     }
+    if (kind === "arrow") {
+      void addObject({
+        object: "arrow",
+        x: center.x - 80,
+        y: center.y - 30,
+        x2: center.x + 80,
+        y2: center.y + 30,
+        ...PAINT,
+      });
+      return;
+    }
     if (kind === "textbox") {
       void addObject({
         object: "textbox",
@@ -353,13 +396,13 @@ export default function WhiteboardCanvas({
     }
     e.preventDefault();
     const world = pointerWorld(e);
+    const rect = boardRef.current?.getBoundingClientRect();
+    const sx = e.clientX - (rect?.left ?? 0);
+    const sy = e.clientY - (rect?.top ?? 0);
 
     if (selected) {
       const bounds = objectBounds(selected);
       const handle = worldToBoard(bounds.maxX, bounds.minY);
-      const rect = boardRef.current?.getBoundingClientRect();
-      const sx = e.clientX - (rect?.left ?? 0);
-      const sy = e.clientY - (rect?.top ?? 0);
       if (Math.hypot(sx - handle.sx, sy - handle.sy) <= HANDLE_PX) {
         e.currentTarget.setPointerCapture(e.pointerId);
         gestureRef.current = {
@@ -370,6 +413,29 @@ export default function WhiteboardCanvas({
           startWorldY: world.y,
           orig: selected,
         };
+        setEditingId(null);
+        return;
+      }
+    }
+
+    const arrow = selected?.object === "arrow"
+      ? selected
+      : hitObject(world.x, world.y, objectsRef.current);
+    if (arrow?.object === "arrow") {
+      const tail = worldToBoard(arrow.x, arrow.y);
+      const head = worldToBoard(arrow.x2, arrow.y2);
+      const tailDist = Math.hypot(sx - tail.sx, sy - tail.sy);
+      const headDist = Math.hypot(sx - head.sx, sy - head.sy);
+      if (Math.min(tailDist, headDist) <= END_HIT_PX) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        gestureRef.current = {
+          kind: "aim",
+          pointerId: e.pointerId,
+          id: arrow.id,
+          end: tailDist <= headDist ? "tail" : "head",
+          orig: arrow,
+        };
+        setSelectedId(arrow.id);
         setEditingId(null);
         return;
       }
@@ -419,6 +485,12 @@ export default function WhiteboardCanvas({
     }
 
     const world = pointerWorld(e);
+    if (gesture.kind === "aim" && gesture.orig.object === "arrow") {
+      replaceObject(gesture.end === "tail"
+        ? { ...gesture.orig, x: world.x, y: world.y }
+        : { ...gesture.orig, x2: world.x, y2: world.y });
+      return;
+    }
     const next = gesture.kind === "move"
       ? movedObject(gesture.orig, world.x - gesture.startWorldX, world.y - gesture.startWorldY)
       : scaledObject(gesture.orig, world.x, world.y);
@@ -477,6 +549,8 @@ export default function WhiteboardCanvas({
   const selection = selected ? objectBounds(selected) : null;
   const selectionScreen = selection ? toScreen(selection.minX, selection.maxY) : null;
   const handleScreen = selection ? toScreen(selection.maxX, selection.minY) : null;
+  const tailGrip = selected?.object === "arrow" ? toScreen(selected.x, selected.y) : null;
+  const headGrip = selected?.object === "arrow" ? toScreen(selected.x2, selected.y2) : null;
   const editorBox = editing?.object === "textbox" ? worldToBoard(editing.x, editing.y + editing.h) : null;
 
   return (
@@ -517,7 +591,7 @@ export default function WhiteboardCanvas({
           {objects.map((obj) => (
             <BoardShape key={obj.id} obj={obj} toScreen={toScreen} zoom={zoom} />
           ))}
-          {selection && selectionScreen && handleScreen && (
+          {selection && selectionScreen && (
             <g className="selection" pointerEvents="none">
               <rect
                 x={selectionScreen.sx}
@@ -525,13 +599,22 @@ export default function WhiteboardCanvas({
                 width={(selection.maxX - selection.minX) * zoom}
                 height={(selection.maxY - selection.minY) * zoom}
               />
-              <rect
-                className="scale-handle"
-                x={handleScreen.sx - 5}
-                y={handleScreen.sy - 5}
-                width={10}
-                height={10}
-              />
+              {handleScreen && (
+                <rect
+                  className="scale-handle"
+                  pointerEvents="all"
+                  x={handleScreen.sx - 5}
+                  y={handleScreen.sy - 5}
+                  width={10}
+                  height={10}
+                />
+              )}
+              {tailGrip && headGrip && (
+                <>
+                  <circle className="endpoint-handle" pointerEvents="all" cx={tailGrip.sx} cy={tailGrip.sy} r={3.5} />
+                  <circle className="endpoint-handle" pointerEvents="all" cx={headGrip.sx} cy={headGrip.sy} r={3.5} />
+                </>
+              )}
             </g>
           )}
         </g>
@@ -574,6 +657,7 @@ export default function WhiteboardCanvas({
         <button type="button" onClick={() => addAtCenter("circle")}>Circle</button>
         <button type="button" onClick={() => addAtCenter("rect")}>Rectangle</button>
         <button type="button" onClick={() => addAtCenter("polygon")}>Polygon</button>
+        <button type="button" onClick={() => addAtCenter("arrow")}>Arrow</button>
         <button type="button" onClick={() => addAtCenter("textbox")}>Textbox</button>
       </div>
 

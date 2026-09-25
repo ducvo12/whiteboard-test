@@ -28,6 +28,12 @@ export const PolygonSchema = ShapeBaseSchema.extend({
     })).min(3).describe("Absolute world vertices. Y increases upward, so a vertex with a larger y is visually above one with a smaller y.")
 }).describe("Polygon. Drawn from points in world coordinates (y-up). (x, y) should match the first point.");
 
+export const ArrowSchema = ShapeBaseSchema.extend({
+    object: z.literal("arrow"),
+    x2: z.number().describe("Tip world X. The arrow points toward (x2, y2)."),
+    y2: z.number().describe("Tip world Y. Origin is bottom-left; Y increases upward."),
+}).describe("Arrow. (x, y) is the tail. (x2, y2) is the tip. Y increases upward.");
+
 export const TextboxSchema = ShapeBaseSchema.extend({
     object: z.literal("textbox"),
     w: z.number().positive(),
@@ -45,12 +51,13 @@ export type ShapeBaseSchemaType = z.infer<typeof ShapeBaseSchema>;
 export type CircleSchemaType = z.infer<typeof CircleSchema>;
 export type RectSchemaType = z.infer<typeof RectSchema>;
 export type PolygonSchemaType = z.infer<typeof PolygonSchema>;
+export type ArrowSchemaType = z.infer<typeof ArrowSchema>;
 export type TextboxSchemaType = z.infer<typeof TextboxSchema>;
 
-export const CreateShapeSchema = z.discriminatedUnion("object", [CircleSchema, RectSchema, PolygonSchema]);
+export const CreateShapeSchema = z.discriminatedUnion("object", [CircleSchema, RectSchema, PolygonSchema, ArrowSchema]);
 export type CreateShapeSchemaType = z.infer<typeof CreateShapeSchema>;
 
-export const BoardObjectSchema = z.discriminatedUnion("object", [CircleSchema, RectSchema, PolygonSchema, TextboxSchema]);
+export const BoardObjectSchema = z.discriminatedUnion("object", [CircleSchema, RectSchema, PolygonSchema, ArrowSchema, TextboxSchema]);
 export type BoardObjectSchemaType = z.infer<typeof BoardObjectSchema>;
 
 export const StoredObjectSchema = z.intersection(StoredShapeSchema, BoardObjectSchema)
@@ -91,6 +98,11 @@ const PolygonUpdateSchema = PolygonSchema
     .partial()
     .strict();
 
+const ArrowUpdateSchema = ArrowSchema
+    .omit({ object: true })
+    .partial()
+    .strict();
+
 const TextboxUpdateSchema = TextboxSchema
     .omit({ object: true })
     .partial()
@@ -102,6 +114,7 @@ export const UpdateObjectSchema = z.object({
         RectUpdateSchema,
         CircleUpdateSchema,
         PolygonUpdateSchema,
+        ArrowUpdateSchema,
         TextboxUpdateSchema,
     ]),
 });
