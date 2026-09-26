@@ -240,12 +240,14 @@ export default function WhiteboardCanvas({
   const [numberDrafts, setNumberDrafts] = useState<Record<string, string>>({});
   const [drawTool, setDrawTool] = useState<DrawTool | null>(null);
   const [drawDraft, setDrawDraft] = useState<DrawDraft | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const editingIdRef = useRef<string | null>(null);
   const draftRef = useRef("");
   const numberDraftsRef = useRef<Record<string, string>>({});
   const drawToolRef = useRef<DrawTool | null>(null);
   const drawDraftRef = useRef<DrawDraft | null>(null);
   const finishPolygonRef = useRef<(points: { x: number; y: number }[]) => void>(() => {});
+  const confirmClearRef = useRef(false);
 
   const { width, height } = size;
   const { panX, panY, zoom } = camera;
@@ -350,6 +352,14 @@ export default function WhiteboardCanvas({
         return;
       }
       const typing = event.target instanceof HTMLElement && !!event.target.closest("input, textarea");
+      if (confirmClearRef.current) {
+        if (event.key === "Escape") {
+          confirmClearRef.current = false;
+          setConfirmClear(false);
+          event.preventDefault();
+        }
+        return;
+      }
       if (event.key === "Enter" && typing) return;
       creationKeyHeldRef.current = true;
       const tool = drawToolRef.current;
@@ -482,6 +492,18 @@ export default function WhiteboardCanvas({
         }}
       />
     );
+  }
+
+  async function clearBoard() {
+    gestureRef.current = null;
+    setSelectedId(null);
+    setEditingId(null);
+    editingIdRef.current = null;
+    syncDraft(null);
+    const response = await fetch("/api/objects/clear", { method: "POST" });
+    if (!response.ok) return;
+    objectsRef.current = [];
+    setObjects([]);
   }
 
   async function addObject(body: BoardObjectSchemaType) {
@@ -1104,7 +1126,29 @@ export default function WhiteboardCanvas({
         <button type="button" aria-pressed={drawTool === "polygon"} onClick={() => chooseTool("polygon")}>Polygon</button>
         <button type="button" aria-pressed={drawTool === "arrow"} onClick={() => chooseTool("arrow")}>Arrow</button>
         <button type="button" aria-pressed={drawTool === "textbox"} onClick={() => chooseTool("textbox")}>Textbox</button>
+        <span className="hud-sep" aria-hidden="true" />
+        <button type="button" onClick={() => { confirmClearRef.current = true; setConfirmClear(true); }}>Clear</button>
       </div>
+      {confirmClear && (
+        <div
+          className="clear-confirm"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            if (event.target === event.currentTarget) {
+              confirmClearRef.current = false;
+              setConfirmClear(false);
+            }
+          }}
+        >
+          <div className="clear-confirm-box" role="dialog" aria-label="Clear the board?">
+            <p>Clear the board?</p>
+            <div>
+              <button type="button" onClick={() => { confirmClearRef.current = false; setConfirmClear(false); }}>Cancel</button>
+              <button type="button" className="clear-confirm-yes" onClick={() => { confirmClearRef.current = false; setConfirmClear(false); void clearBoard(); }}>Clear</button>
+            </div>
+          </div>
+        </div>
+      )}
       {drawHint && !selected && <div className="draw-hint">{drawHint}</div>}
 
       {selected && (

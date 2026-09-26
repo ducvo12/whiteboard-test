@@ -184,6 +184,7 @@ textarea:focus-visible {
     left: var(--hud-inset);
     z-index: 5;
     display: flex;
+    align-items: center;
     gap: 2px;
     padding: 4px;
     border: 1px solid var(--line);
@@ -212,6 +213,58 @@ textarea:focus-visible {
 
 .add-bar button[aria-pressed="true"]:hover:enabled {
     background: var(--olive-hover);
+}
+
+.clear-confirm {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(31, 36, 28, 0.28);
+}
+
+.clear-confirm-box {
+    width: 240px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+}
+
+.clear-confirm-box p {
+    margin: 0 0 14px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.clear-confirm-box div {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.clear-confirm-box button {
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.clear-confirm-box button:hover:enabled {
+    background: var(--olive-soft);
+}
+
+.clear-confirm-box button.clear-confirm-yes {
+    background: #c0392b;
+    color: #fff;
+}
+
+.clear-confirm-box button.clear-confirm-yes:hover:enabled {
+    background: #a93226;
 }
 
 .canvas.is-drawing,

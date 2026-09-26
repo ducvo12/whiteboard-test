@@ -41,6 +41,11 @@ export function deleteObject(input: DeleteObjectSchemaType) {
     return { success: true, deleted_id: input };
 }
 
+export function clearObjects() {
+    objects.length = 0;
+    return { success: true };
+}
+
 export function updateObject(input: UpdateObjectSchemaType) {
     const index = objects.findIndex((obj) => obj.id === input.id);
 
