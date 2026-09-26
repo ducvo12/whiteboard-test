@@ -205,6 +205,41 @@ textarea:focus-visible {
     background: var(--olive-soft);
 }
 
+.add-bar button[aria-pressed="true"] {
+    background: var(--olive);
+    color: var(--paper-raised);
+}
+
+.add-bar button[aria-pressed="true"]:hover:enabled {
+    background: var(--olive-hover);
+}
+
+.canvas.is-drawing,
+.canvas.is-drawing svg {
+    cursor: crosshair;
+}
+
+.draw-hint {
+    position: absolute;
+    top: 52px;
+    left: var(--hud-inset);
+    z-index: 5;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+    color: var(--ink-muted);
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.draw-preview {
+    fill: var(--olive-soft);
+    stroke: var(--olive);
+    stroke-width: 1.5;
+}
+
 .object-inspector {
     position: absolute;
     top: 52px;
@@ -244,6 +279,43 @@ textarea:focus-visible {
     color: var(--ink);
     padding: 4px 6px;
     font: inherit;
+}
+
+.point-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--ink-muted);
+}
+
+.point-stepper > div {
+    display: flex;
+    align-items: center;
+    width: 92px;
+    height: 26px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    overflow: hidden;
+}
+
+.point-stepper button {
+    width: 26px;
+    height: 26px;
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1;
+}
+
+.point-stepper button:hover:enabled {
+    background: var(--olive-soft);
+}
+
+.point-stepper > div span {
+    flex: 1;
+    text-align: center;
+    color: var(--ink);
 }
 
 .object-inspector input[type="color"] {

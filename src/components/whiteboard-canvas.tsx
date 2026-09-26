@@ -52,7 +52,37 @@ type Gesture =
       id: string;
       end: "tail" | "head";
       orig: StoredObjectSchemaType;
+    }
+  | {
+      kind: "vertex";
+      pointerId: number;
+      id: string;
+      index: number;
+      orig: StoredObjectSchemaType;
+    }
+  | {
+      kind: "draw";
+      pointerId: number;
+      tool: "circle" | "rect" | "textbox";
+      x0: number;
+      y0: number;
     };
+
+type DrawTool = "circle" | "rect" | "polygon" | "arrow" | "textbox";
+
+type DrawDraft =
+  | { kind: "circle" | "rect" | "textbox"; x0: number; y0: number; x1: number; y1: number }
+  | { kind: "arrow"; x: number; y: number; x2: number; y2: number }
+  | { kind: "polygon"; points: { x: number; y: number }[]; cursor: { x: number; y: number } | null };
+
+function dragBox(x0: number, y0: number, x1: number, y1: number) {
+  return {
+    x: Math.min(x0, x1),
+    y: Math.min(y0, y1),
+    w: Math.abs(x1 - x0),
+    h: Math.abs(y1 - y0),
+  };
+}
 
 function panelInsets(chatOpen: boolean, viewH: number) {
   if (!chatOpen) return { right: 0, bottom: 0 };
@@ -137,6 +167,46 @@ function scaledObject(orig: StoredObjectSchemaType, worldX: number, worldY: numb
   return { ...orig, y, w, h: top - y };
 }
 
+function withPointCount(points: { x: number; y: number }[], count: number) {
+  const next = points.map((point) => ({ x: point.x, y: point.y }));
+  const target = Math.max(3, Math.min(30, Math.round(count)));
+  while (next.length < target) {
+    let edge = 0;
+    let longest = -1;
+    for (let i = 0; i < next.length; i++) {
+      const start = next[i];
+      const end = next[(i + 1) % next.length];
+      const length = Math.hypot(end.x - start.x, end.y - start.y);
+      if (length > longest) {
+        longest = length;
+        edge = i;
+      }
+    }
+    const start = next[edge];
+    const end = next[(edge + 1) % next.length];
+    next.splice(edge + 1, 0, { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 });
+  }
+  while (next.length > target) {
+    let drop = 0;
+    let flattest = Infinity;
+    for (let i = 0; i < next.length; i++) {
+      const prev = next[(i - 1 + next.length) % next.length];
+      const point = next[i];
+      const after = next[(i + 1) % next.length];
+      const dx = after.x - prev.x;
+      const dy = after.y - prev.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const distance = Math.abs((point.x - prev.x) * dy - (point.y - prev.y) * dx) / length;
+      if (distance < flattest) {
+        flattest = distance;
+        drop = i;
+      }
+    }
+    next.splice(drop, 1);
+  }
+  return next;
+}
+
 function geometryPatch(obj: StoredObjectSchemaType) {
   if (obj.object === "circle") return { x: obj.x, y: obj.y, r: obj.r };
   if (obj.object === "polygon") return { x: obj.x, y: obj.y, points: obj.points };
@@ -164,9 +234,14 @@ export default function WhiteboardCanvas({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [numberDrafts, setNumberDrafts] = useState<Record<string, string>>({});
+  const [drawTool, setDrawTool] = useState<DrawTool | null>(null);
+  const [drawDraft, setDrawDraft] = useState<DrawDraft | null>(null);
   const editingIdRef = useRef<string | null>(null);
   const draftRef = useRef("");
   const numberDraftsRef = useRef<Record<string, string>>({});
+  const drawToolRef = useRef<DrawTool | null>(null);
+  const drawDraftRef = useRef<DrawDraft | null>(null);
+  const finishPolygonRef = useRef<(points: { x: number; y: number }[]) => void>(() => {});
 
   const { width, height } = size;
   const { panX, panY, zoom } = camera;
@@ -254,6 +329,29 @@ export default function WhiteboardCanvas({
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("input, textarea")) return;
+      if (event.key === "Escape") {
+        drawToolRef.current = null;
+        drawDraftRef.current = null;
+        setDrawTool(null);
+        setDrawDraft(null);
+        return;
+      }
+      if (event.key === "Enter" && drawToolRef.current === "polygon") {
+        const draft = drawDraftRef.current;
+        if (draft?.kind === "polygon" && draft.points.length >= 3) {
+          event.preventDefault();
+          finishPolygonRef.current(draft.points);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function zoomAround(sx: number, sy: number, nextZoom: number) {
     const viewH = boardRef.current?.clientHeight ?? height;
     setCamera(zoomAtScreenPoint(sx, sy, nextZoom, camera, viewH));
@@ -308,7 +406,7 @@ export default function WhiteboardCanvas({
     if (!selected) return;
     let next = { ...selected, ...patch } as StoredObjectSchemaType;
     let saved = patch;
-    if (selected.object === "polygon" && (typeof patch.x === "number" || typeof patch.y === "number")) {
+    if (selected.object === "polygon" && patch.points == null && (typeof patch.x === "number" || typeof patch.y === "number")) {
       const dx = (typeof patch.x === "number" ? patch.x : selected.x) - selected.x;
       const dy = (typeof patch.y === "number" ? patch.y : selected.y) - selected.y;
       next = {
@@ -370,63 +468,23 @@ export default function WhiteboardCanvas({
     const list = [...objectsRef.current, created as StoredObjectSchemaType];
     objectsRef.current = list;
     setObjects(list);
-    setSelectedId(created.id);
     setEditingId(null);
   }
 
-  function addAtCenter(kind: BoardObjectSchemaType["object"]) {
-    const node = boardRef.current;
-    const viewH = node?.clientHeight ?? height;
-    const { sx, sy } = visibleCenter();
-    const center = screenToWorld(sx, sy, cameraRef.current, viewH);
+  function syncDraw(tool: DrawTool | null, draft: DrawDraft | null) {
+    drawToolRef.current = tool;
+    drawDraftRef.current = draft;
+    setDrawTool(tool);
+    setDrawDraft(draft);
+  }
 
-    if (kind === "circle") {
-      void addObject({ object: "circle", x: center.x, y: center.y, r: 40, ...PAINT });
-      return;
-    }
-    if (kind === "rect") {
-      void addObject({
-        object: "rect",
-        x: center.x - 60,
-        y: center.y - 40,
-        w: 120,
-        h: 80,
-        ...PAINT,
-      });
-      return;
-    }
-    if (kind === "arrow") {
-      void addObject({
-        object: "arrow",
-        x: center.x - 80,
-        y: center.y - 30,
-        x2: center.x + 80,
-        y2: center.y + 30,
-        ...PAINT,
-      });
-      return;
-    }
-    if (kind === "textbox") {
-      void addObject({
-        object: "textbox",
-        x: center.x - 90,
-        y: center.y - 36,
-        w: 180,
-        h: 72,
-        text: "Text",
-        fontSize: 18,
-        textColor: "#1f241c",
-        ...PAINT,
-      });
-      return;
-    }
+  function syncDraft(draft: DrawDraft | null) {
+    drawDraftRef.current = draft;
+    setDrawDraft(draft);
+  }
 
-    const points = [
-      { x: center.x, y: center.y + 50 },
-      { x: center.x + 60, y: center.y },
-      { x: center.x, y: center.y - 50 },
-      { x: center.x - 60, y: center.y },
-    ];
+  function commitPolygon(points: { x: number; y: number }[]) {
+    if (points.length < 3) return;
     void addObject({
       object: "polygon",
       x: points[0].x,
@@ -435,6 +493,57 @@ export default function WhiteboardCanvas({
       ...PAINT,
       fillOpacity: 0.85,
     });
+    if (drawToolRef.current === "polygon") {
+      syncDraft({ kind: "polygon", points: [], cursor: null });
+    }
+  }
+
+  finishPolygonRef.current = commitPolygon;
+
+  function placeDrag(draft: { kind: "circle" | "rect" | "textbox"; x0: number; y0: number; x1: number; y1: number }) {
+    if (draft.kind === "circle") {
+      const r = Math.hypot(draft.x1 - draft.x0, draft.y1 - draft.y0);
+      if (r < 1) return;
+      void addObject({ object: "circle", x: draft.x0, y: draft.y0, r, ...PAINT });
+      return;
+    }
+    const box = dragBox(draft.x0, draft.y0, draft.x1, draft.y1);
+    if (box.w < 1 || box.h < 1) return;
+    if (draft.kind === "rect") {
+      void addObject({ object: "rect", ...box, ...PAINT });
+      return;
+    }
+    void addObject({
+      object: "textbox",
+      ...box,
+      text: "Text",
+      fontSize: 18,
+      textColor: "#1f241c",
+      ...PAINT,
+    });
+  }
+
+  function chooseTool(tool: DrawTool) {
+    const current = drawToolRef.current;
+    const draft = drawDraftRef.current;
+    if (current === "polygon" && draft?.kind === "polygon" && draft.points.length >= 3) {
+      void addObject({
+        object: "polygon",
+        x: draft.points[0].x,
+        y: draft.points[0].y,
+        points: draft.points,
+        ...PAINT,
+        fillOpacity: 0.85,
+      });
+    }
+    if (current === tool) {
+      syncDraw(null, null);
+      return;
+    }
+    syncDraw(tool, tool === "polygon" ? { kind: "polygon", points: [], cursor: null } : null);
+    setSelectedId(null);
+    setEditingId(null);
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   }
 
   function commitText() {
@@ -464,6 +573,54 @@ export default function WhiteboardCanvas({
     }
     e.preventDefault();
     const world = pointerWorld(e);
+    const tool = drawToolRef.current;
+    if (tool && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    if (tool === "polygon") {
+      const draft = drawDraftRef.current;
+      const points = draft?.kind === "polygon" ? draft.points : [];
+      if (points.length >= 3) {
+        const first = worldToBoard(points[0].x, points[0].y);
+        const rect = boardRef.current?.getBoundingClientRect();
+        const sx = e.clientX - (rect?.left ?? 0);
+        const sy = e.clientY - (rect?.top ?? 0);
+        if (Math.hypot(sx - first.sx, sy - first.sy) <= END_HIT_PX) {
+          commitPolygon(points);
+          return;
+        }
+      }
+      if (points.length < 30) {
+        const last = points[points.length - 1];
+        if (!last || Math.hypot(world.x - last.x, world.y - last.y) >= 1) {
+          syncDraft({ kind: "polygon", points: [...points, world], cursor: world });
+        }
+      }
+      return;
+    }
+    if (tool === "arrow") {
+      const draft = drawDraftRef.current;
+      if (draft?.kind === "arrow") {
+        if (Math.hypot(world.x - draft.x, world.y - draft.y) >= 1) {
+          void addObject({
+            object: "arrow",
+            x: draft.x,
+            y: draft.y,
+            x2: world.x,
+            y2: world.y,
+            ...PAINT,
+          });
+          syncDraft(null);
+        }
+        return;
+      }
+      syncDraft({ kind: "arrow", x: world.x, y: world.y, x2: world.x, y2: world.y });
+      return;
+    }
+    if (tool === "circle" || tool === "rect" || tool === "textbox") {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      gestureRef.current = { kind: "draw", pointerId: e.pointerId, tool, x0: world.x, y0: world.y };
+      syncDraft({ kind: tool, x0: world.x, y0: world.y, x1: world.x, y1: world.y });
+      return;
+    }
     const rect = boardRef.current?.getBoundingClientRect();
     const sx = e.clientX - (rect?.left ?? 0);
     const sy = e.clientY - (rect?.top ?? 0);
@@ -509,6 +666,35 @@ export default function WhiteboardCanvas({
       }
     }
 
+    const polygon = selected?.object === "polygon"
+      ? selected
+      : hitObject(world.x, world.y, objectsRef.current);
+    if (polygon?.object === "polygon") {
+      let nearest = -1;
+      let nearestDist = END_HIT_PX;
+      polygon.points.forEach((point, index) => {
+        const screen = worldToBoard(point.x, point.y);
+        const dist = Math.hypot(sx - screen.sx, sy - screen.sy);
+        if (dist <= nearestDist) {
+          nearest = index;
+          nearestDist = dist;
+        }
+      });
+      if (nearest >= 0) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        gestureRef.current = {
+          kind: "vertex",
+          pointerId: e.pointerId,
+          id: polygon.id,
+          index: nearest,
+          orig: polygon,
+        };
+        setSelectedId(polygon.id);
+        setEditingId(null);
+        return;
+      }
+    }
+
     const hit = hitObject(world.x, world.y, objectsRef.current);
     if (hit) {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -540,8 +726,23 @@ export default function WhiteboardCanvas({
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLElement>) {
+    const tool = drawToolRef.current;
+    const draft = drawDraftRef.current;
+    if (tool === "polygon" && draft?.kind === "polygon" && draft.points.length > 0) {
+      syncDraft({ ...draft, cursor: pointerWorld(e) });
+    } else if (tool === "arrow" && draft?.kind === "arrow" && !gestureRef.current) {
+      const world = pointerWorld(e);
+      syncDraft({ ...draft, x2: world.x, y2: world.y });
+    }
+
     const gesture = gestureRef.current;
     if (!gesture || gesture.pointerId !== e.pointerId) return;
+
+    if (gesture.kind === "draw") {
+      const world = pointerWorld(e);
+      syncDraft({ kind: gesture.tool, x0: gesture.x0, y0: gesture.y0, x1: world.x, y1: world.y });
+      return;
+    }
 
     if (gesture.kind === "pan") {
       setCamera((current) => ({
@@ -559,6 +760,12 @@ export default function WhiteboardCanvas({
         : { ...gesture.orig, x2: world.x, y2: world.y });
       return;
     }
+    if (gesture.kind === "vertex" && gesture.orig.object === "polygon") {
+      const points = gesture.orig.points.map((point, index) =>
+        index === gesture.index ? { x: world.x, y: world.y } : point);
+      replaceObject({ ...gesture.orig, x: points[0].x, y: points[0].y, points });
+      return;
+    }
     const next = gesture.kind === "move"
       ? movedObject(gesture.orig, world.x - gesture.startWorldX, world.y - gesture.startWorldY)
       : scaledObject(gesture.orig, world.x, world.y);
@@ -574,6 +781,14 @@ export default function WhiteboardCanvas({
     }
     e.currentTarget.classList.remove("is-panning");
 
+    if (gesture.kind === "draw") {
+      const draft = drawDraftRef.current;
+      syncDraft(null);
+      if (draft && (draft.kind === "circle" || draft.kind === "rect" || draft.kind === "textbox")) {
+        placeDrag(draft);
+      }
+      return;
+    }
     if (gesture.kind === "pan") return;
     const obj = objectsRef.current.find((item) => item.id === gesture.id);
     if (!obj) return;
@@ -581,6 +796,7 @@ export default function WhiteboardCanvas({
   }
 
   function onDoubleClick(e: React.MouseEvent<HTMLElement>) {
+    if (drawToolRef.current) return;
     if (e.target instanceof Element && e.target.closest("button, textarea, .canvas-hud, .add-bar, .object-inspector")) {
       return;
     }
@@ -619,12 +835,53 @@ export default function WhiteboardCanvas({
   const handleScreen = selection ? toScreen(selection.maxX, selection.minY) : null;
   const tailGrip = selected?.object === "arrow" ? toScreen(selected.x, selected.y) : null;
   const headGrip = selected?.object === "arrow" ? toScreen(selected.x2, selected.y2) : null;
+  const vertexGrips = selected?.object === "polygon"
+    ? selected.points.map((point) => toScreen(point.x, point.y))
+    : [];
   const editorBox = editing?.object === "textbox" ? worldToBoard(editing.x, editing.y + editing.h) : null;
+  const polygonDraft = drawDraft?.kind === "polygon" ? drawDraft : null;
+  const polygonScreens = polygonDraft ? polygonDraft.points.map((point) => toScreen(point.x, point.y)) : [];
+  const polygonCursor = polygonDraft?.cursor ? toScreen(polygonDraft.cursor.x, polygonDraft.cursor.y) : null;
+  let drawPreview: StoredObjectSchemaType | null = null;
+  if (drawDraft?.kind === "circle") {
+    const r = Math.hypot(drawDraft.x1 - drawDraft.x0, drawDraft.y1 - drawDraft.y0);
+    if (r >= 1) drawPreview = { id: "draft", object: "circle", x: drawDraft.x0, y: drawDraft.y0, r, ...PAINT };
+  } else if (drawDraft?.kind === "rect" || drawDraft?.kind === "textbox") {
+    const box = dragBox(drawDraft.x0, drawDraft.y0, drawDraft.x1, drawDraft.y1);
+    if (box.w >= 1 && box.h >= 1) {
+      drawPreview = drawDraft.kind === "rect"
+        ? { id: "draft", object: "rect", ...box, ...PAINT }
+        : { id: "draft", object: "textbox", ...box, text: "Text", fontSize: 18, textColor: "#1f241c", ...PAINT };
+    }
+  } else if (drawDraft?.kind === "arrow" && Math.hypot(drawDraft.x2 - drawDraft.x, drawDraft.y2 - drawDraft.y) >= 1) {
+    drawPreview = {
+      id: "draft",
+      object: "arrow",
+      x: drawDraft.x,
+      y: drawDraft.y,
+      x2: drawDraft.x2,
+      y2: drawDraft.y2,
+      ...PAINT,
+    };
+  }
+  const drawHint = drawTool === "circle"
+    ? "Drag to set the center and radius"
+    : drawTool === "rect"
+      ? "Drag from the top-left corner to the opposite corner"
+      : drawTool === "textbox"
+        ? "Drag to draw the text box"
+        : drawTool === "arrow"
+          ? (drawDraft?.kind === "arrow" ? "Click the arrow end" : "Click the arrow start")
+          : drawTool === "polygon"
+            ? (polygonDraft && polygonDraft.points.length >= 3
+              ? "Click to add points. Click the first point or press Enter to finish."
+              : "Click to add points")
+            : null;
 
   return (
     <section
       ref={boardRef}
-      className="canvas"
+      className={drawTool ? "canvas is-drawing" : "canvas"}
       aria-label="Whiteboard canvas"
       style={{
         backgroundImage: `radial-gradient(circle at 0 0, rgba(31, 36, 28, 0.14) 1px, transparent 1.6px)`,
@@ -659,6 +916,52 @@ export default function WhiteboardCanvas({
           {objects.map((obj) => (
             <BoardShape key={obj.id} obj={obj} toScreen={toScreen} zoom={zoom} />
           ))}
+          <g pointerEvents="none">
+            {drawPreview && <BoardShape obj={drawPreview} toScreen={toScreen} zoom={zoom} />}
+            {drawDraft?.kind === "arrow" && (
+              <circle
+                cx={toScreen(drawDraft.x, drawDraft.y).sx}
+                cy={toScreen(drawDraft.x, drawDraft.y).sy}
+                r={3.5}
+                fill="#fbfbf8"
+                stroke="#344b2d"
+                strokeWidth={1.5}
+              />
+            )}
+            {polygonScreens.length >= 3 && (
+              <polygon
+                points={polygonScreens.map((point) => `${point.sx},${point.sy}`).join(" ")}
+                fill="#c5d4b4"
+                fillOpacity={0.85}
+                stroke="#344b2d"
+                strokeWidth={2}
+              />
+            )}
+            {polygonScreens.length === 2 && (
+              <line
+                x1={polygonScreens[0].sx}
+                y1={polygonScreens[0].sy}
+                x2={polygonScreens[1].sx}
+                y2={polygonScreens[1].sy}
+                stroke="#344b2d"
+                strokeWidth={2}
+              />
+            )}
+            {polygonCursor && polygonScreens.length > 0 && (
+              <line
+                x1={polygonScreens[polygonScreens.length - 1].sx}
+                y1={polygonScreens[polygonScreens.length - 1].sy}
+                x2={polygonCursor.sx}
+                y2={polygonCursor.sy}
+                stroke="#344b2d"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+              />
+            )}
+            {polygonScreens.map((point, index) => (
+              <circle key={index} cx={point.sx} cy={point.sy} r={3.5} fill="#fbfbf8" stroke="#344b2d" strokeWidth={1.5} />
+            ))}
+          </g>
           {selection && selectionScreen && (
             <g className="selection" pointerEvents="none">
               <rect
@@ -677,6 +980,9 @@ export default function WhiteboardCanvas({
                   height={10}
                 />
               )}
+              {vertexGrips.map((grip, index) => (
+                <circle key={index} className="endpoint-handle" pointerEvents="all" cx={grip.sx} cy={grip.sy} r={3.5} />
+              ))}
               {tailGrip && headGrip && (
                 <>
                   <circle className="endpoint-handle" pointerEvents="all" cx={tailGrip.sx} cy={tailGrip.sy} r={3.5} />
@@ -722,18 +1028,45 @@ export default function WhiteboardCanvas({
       <div className="coord-extent">{formatWorld(extent.x, extent.y)}</div>
 
       <div className="add-bar" role="toolbar" aria-label="Add objects">
-        <button type="button" onClick={() => addAtCenter("circle")}>Circle</button>
-        <button type="button" onClick={() => addAtCenter("rect")}>Rectangle</button>
-        <button type="button" onClick={() => addAtCenter("polygon")}>Polygon</button>
-        <button type="button" onClick={() => addAtCenter("arrow")}>Arrow</button>
-        <button type="button" onClick={() => addAtCenter("textbox")}>Textbox</button>
+        <button type="button" aria-pressed={drawTool === "circle"} onClick={() => chooseTool("circle")}>Circle</button>
+        <button type="button" aria-pressed={drawTool === "rect"} onClick={() => chooseTool("rect")}>Rectangle</button>
+        <button type="button" aria-pressed={drawTool === "polygon"} onClick={() => chooseTool("polygon")}>Polygon</button>
+        <button type="button" aria-pressed={drawTool === "arrow"} onClick={() => chooseTool("arrow")}>Arrow</button>
+        <button type="button" aria-pressed={drawTool === "textbox"} onClick={() => chooseTool("textbox")}>Textbox</button>
       </div>
+      {drawHint && !selected && <div className="draw-hint">{drawHint}</div>}
 
       {selected && (
         <form className="object-inspector" aria-label="Object properties" onSubmit={(event) => event.preventDefault()}>
           <div className="inspector-title">{selected.object}</div>
           <label>X{numberInput("x", selected.x)}</label>
           <label>Y{numberInput("y", selected.y)}</label>
+          {selected.object === "polygon" && (
+            <div className="point-stepper">
+              <span>Points</span>
+              <div>
+                <button
+                  type="button"
+                  aria-label="Remove point"
+                  disabled={selected.points.length <= 3}
+                  onClick={() => {
+                    const points = withPointCount(selected.points, selected.points.length - 1);
+                    editObject({ x: points[0].x, y: points[0].y, points });
+                  }}
+                >−</button>
+                <span>{selected.points.length}</span>
+                <button
+                  type="button"
+                  aria-label="Add point"
+                  disabled={selected.points.length >= 30}
+                  onClick={() => {
+                    const points = withPointCount(selected.points, selected.points.length + 1);
+                    editObject({ x: points[0].x, y: points[0].y, points });
+                  }}
+                >+</button>
+              </div>
+            </div>
+          )}
           {selected.object === "arrow" && (
             <>
               <label>Tip X{numberInput("x2", selected.x2)}</label>
