@@ -329,27 +329,50 @@ export default function WhiteboardCanvas({
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
+  const creationKeyHeldRef = useRef(false);
+
   useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      const target = event.target;
-      if (target instanceof HTMLElement && target.closest("input, textarea")) return;
-      if (event.key === "Escape") {
-        drawToolRef.current = null;
-        drawDraftRef.current = null;
-        setDrawTool(null);
-        setDrawDraft(null);
+    function clearDrawTool() {
+      drawToolRef.current = null;
+      drawDraftRef.current = null;
+      setDrawTool(null);
+      setDrawDraft(null);
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" && event.key !== "Enter") return;
+      if (event.repeat || creationKeyHeldRef.current) {
+        event.preventDefault();
         return;
       }
-      if (event.key === "Enter" && drawToolRef.current === "polygon") {
+      const typing = event.target instanceof HTMLElement && !!event.target.closest("input, textarea");
+      if (event.key === "Enter" && typing) return;
+      creationKeyHeldRef.current = true;
+      const tool = drawToolRef.current;
+      if (!tool) return;
+      if (tool === "polygon") {
         const draft = drawDraftRef.current;
-        if (draft?.kind === "polygon" && draft.points.length >= 3) {
+        const points = draft?.kind === "polygon" ? draft.points : [];
+        if (points.length >= 3) {
+          finishPolygonRef.current(points);
           event.preventDefault();
-          finishPolygonRef.current(draft.points);
+          return;
         }
       }
+      clearDrawTool();
+      event.preventDefault();
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+
+    function onKeyUp(event: KeyboardEvent) {
+      if (event.key === "Escape" || event.key === "Enter") creationKeyHeldRef.current = false;
+    }
+
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+    };
   }, []);
 
   function zoomAround(sx: number, sy: number, nextZoom: number) {
@@ -874,8 +897,10 @@ export default function WhiteboardCanvas({
           ? (drawDraft?.kind === "arrow" ? "Click the arrow end" : "Click the arrow start")
           : drawTool === "polygon"
             ? (polygonDraft && polygonDraft.points.length >= 3
-              ? "Click to add points. Click the first point or press Enter to finish."
-              : "Click to add points")
+              ? "Press Enter or Escape to finish. Press either again to leave."
+              : polygonDraft && polygonDraft.points.length > 0
+                ? "Click to add points"
+                : "Click to add points. Press Enter or Escape to leave.")
             : null;
 
   return (
