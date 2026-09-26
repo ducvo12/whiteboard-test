@@ -163,8 +163,10 @@ export default function WhiteboardCanvas({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [numberDrafts, setNumberDrafts] = useState<Record<string, string>>({});
   const editingIdRef = useRef<string | null>(null);
   const draftRef = useRef("");
+  const numberDraftsRef = useRef<Record<string, string>>({});
 
   const { width, height } = size;
   const { panX, panY, zoom } = camera;
@@ -178,6 +180,11 @@ export default function WhiteboardCanvas({
   useEffect(() => {
     objectsRef.current = objects;
   }, [objects]);
+
+  useEffect(() => {
+    numberDraftsRef.current = {};
+    setNumberDrafts({});
+  }, [selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -297,6 +304,61 @@ export default function WhiteboardCanvas({
     });
   }
 
+  function editObject(patch: Record<string, unknown>) {
+    if (!selected) return;
+    let next = { ...selected, ...patch } as StoredObjectSchemaType;
+    let saved = patch;
+    if (selected.object === "polygon" && (typeof patch.x === "number" || typeof patch.y === "number")) {
+      const dx = (typeof patch.x === "number" ? patch.x : selected.x) - selected.x;
+      const dy = (typeof patch.y === "number" ? patch.y : selected.y) - selected.y;
+      next = {
+        ...selected,
+        x: selected.x + dx,
+        y: selected.y + dy,
+        points: selected.points.map((point) => ({ x: point.x + dx, y: point.y + dy })),
+      };
+      saved = { x: next.x, y: next.y, points: next.points };
+    }
+    replaceObject(next);
+    void savePatch(selected.id, saved);
+  }
+
+  function editNumber(field: string, raw: string, min = -Infinity) {
+    numberDraftsRef.current = { ...numberDraftsRef.current, [field]: raw };
+    setNumberDrafts(numberDraftsRef.current);
+    const value = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(value) || value < min) return;
+    editObject({ [field]: value });
+  }
+
+  function commitNumber(field: string, raw: string, min = -Infinity) {
+    const value = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(value)) {
+      if (min <= 0) editObject({ [field]: 0 });
+    } else if (value >= min) {
+      editObject({ [field]: value });
+    }
+    const next = { ...numberDraftsRef.current };
+    delete next[field];
+    numberDraftsRef.current = next;
+    setNumberDrafts(next);
+  }
+
+  function numberInput(field: string, current: number, min = -Infinity) {
+    return (
+      <input
+        type="text"
+        inputMode="decimal"
+        value={numberDrafts[field] ?? String(current)}
+        onChange={(event) => editNumber(field, event.target.value, min)}
+        onBlur={(event) => commitNumber(field, event.currentTarget.value, min)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+      />
+    );
+  }
+
   async function addObject(body: BoardObjectSchemaType) {
     const response = await fetch("/api/objects", {
       method: "PUT",
@@ -389,9 +451,15 @@ export default function WhiteboardCanvas({
 
   function onPointerDown(e: React.PointerEvent<HTMLElement>) {
     if (e.button !== 0) return;
+    if (!(e.target instanceof Element && e.target.closest(".object-inspector"))) {
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement && active.closest(".object-inspector")) {
+        active.blur();
+      }
+    }
     if (e.target instanceof Element && e.target.closest("textarea")) return;
     commitText();
-    if (e.target instanceof Element && e.target.closest("button, .canvas-hud, .add-bar")) {
+    if (e.target instanceof Element && e.target.closest("button, .canvas-hud, .add-bar, .object-inspector")) {
       return;
     }
     e.preventDefault();
@@ -513,7 +581,7 @@ export default function WhiteboardCanvas({
   }
 
   function onDoubleClick(e: React.MouseEvent<HTMLElement>) {
-    if (e.target instanceof Element && e.target.closest("button, textarea, .canvas-hud, .add-bar")) {
+    if (e.target instanceof Element && e.target.closest("button, textarea, .canvas-hud, .add-bar, .object-inspector")) {
       return;
     }
     const world = pointerWorld(e);
@@ -660,6 +728,39 @@ export default function WhiteboardCanvas({
         <button type="button" onClick={() => addAtCenter("arrow")}>Arrow</button>
         <button type="button" onClick={() => addAtCenter("textbox")}>Textbox</button>
       </div>
+
+      {selected && (
+        <form className="object-inspector" aria-label="Object properties" onSubmit={(event) => event.preventDefault()}>
+          <div className="inspector-title">{selected.object}</div>
+          <label>X{numberInput("x", selected.x)}</label>
+          <label>Y{numberInput("y", selected.y)}</label>
+          {selected.object === "arrow" && (
+            <>
+              <label>Tip X{numberInput("x2", selected.x2)}</label>
+              <label>Tip Y{numberInput("y2", selected.y2)}</label>
+            </>
+          )}
+          {selected.object === "circle" && (
+            <label>Radius{numberInput("r", selected.r, 1)}</label>
+          )}
+          {(selected.object === "rect" || selected.object === "textbox") && (
+            <>
+              <label>Width{numberInput("w", selected.w, 1)}</label>
+              <label>Height{numberInput("h", selected.h, 1)}</label>
+            </>
+          )}
+          {selected.object === "textbox" && (
+            <>
+              <label>Text<input type="text" value={selected.text} onChange={(event) => { if (event.target.value) editObject({ text: event.target.value }); }} /></label>
+              <label>Font{numberInput("fontSize", selected.fontSize, 1)}</label>
+              <label>Text color<input type="color" value={selected.textColor} onChange={(event) => editObject({ textColor: event.target.value })} /></label>
+            </>
+          )}
+          <label>Stroke<input type="color" value={selected.strokeColor} onChange={(event) => editObject({ strokeColor: event.target.value })} /></label>
+          <label>Fill<input type="color" value={selected.fillColor} onChange={(event) => editObject({ fillColor: event.target.value })} /></label>
+          <label>Stroke width{numberInput("strokeWidth", selected.strokeWidth, 0)}</label>
+        </form>
+      )}
 
       <CanvasHud
         zoom={zoom}

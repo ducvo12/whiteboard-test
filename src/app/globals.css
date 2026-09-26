@@ -205,6 +205,56 @@ textarea:focus-visible {
     background: var(--olive-soft);
 }
 
+.object-inspector {
+    position: absolute;
+    top: 52px;
+    left: var(--hud-inset);
+    z-index: 5;
+    width: 196px;
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+    font-size: 12px;
+}
+
+.inspector-title {
+    font-weight: 600;
+    text-transform: capitalize;
+    color: var(--ink);
+}
+
+.object-inspector label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--ink-muted);
+}
+
+.object-inspector input[type="number"],
+.object-inspector input[type="text"] {
+    width: 92px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 4px 6px;
+    font: inherit;
+}
+
+.object-inspector input[type="color"] {
+    width: 28px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: none;
+}
+
 .selection rect {
     fill: none;
     stroke: var(--olive);
