@@ -22,6 +22,7 @@ const POLL_MS = 800;
 const MIN_SIZE = 12;
 const HANDLE_PX = 12;
 const END_HIT_PX = 8;
+const CLICK_SLOP = 5;
 
 const PAINT = {
   strokeColor: "#344b2d",
@@ -61,11 +62,14 @@ type Gesture =
       orig: StoredObjectSchemaType;
     }
   | {
-      kind: "draw";
+      kind: "press";
       pointerId: number;
-      tool: "circle" | "rect" | "textbox";
-      x0: number;
-      y0: number;
+      startX: number;
+      startY: number;
+      worldX: number;
+      worldY: number;
+      panX: number;
+      panY: number;
     };
 
 type DrawTool = "circle" | "rect" | "polygon" | "arrow" | "textbox";
@@ -581,31 +585,17 @@ export default function WhiteboardCanvas({
     void savePatch(id, { text });
   }
 
-  function onPointerDown(e: React.PointerEvent<HTMLElement>) {
-    if (e.button !== 0) return;
-    if (!(e.target instanceof Element && e.target.closest(".object-inspector"))) {
-      const active = document.activeElement;
-      if (active instanceof HTMLInputElement && active.closest(".object-inspector")) {
-        active.blur();
-      }
-    }
-    if (e.target instanceof Element && e.target.closest("textarea")) return;
-    commitText();
-    if (e.target instanceof Element && e.target.closest("button, .canvas-hud, .add-bar, .object-inspector")) {
-      return;
-    }
-    e.preventDefault();
-    const world = pointerWorld(e);
+  function applyToolClick(worldX: number, worldY: number, clientX: number, clientY: number) {
     const tool = drawToolRef.current;
-    if (tool && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const world = { x: worldX, y: worldY };
     if (tool === "polygon") {
       const draft = drawDraftRef.current;
       const points = draft?.kind === "polygon" ? draft.points : [];
       if (points.length >= 3) {
         const first = worldToBoard(points[0].x, points[0].y);
         const rect = boardRef.current?.getBoundingClientRect();
-        const sx = e.clientX - (rect?.left ?? 0);
-        const sy = e.clientY - (rect?.top ?? 0);
+        const sx = clientX - (rect?.left ?? 0);
+        const sy = clientY - (rect?.top ?? 0);
         if (Math.hypot(sx - first.sx, sy - first.sy) <= END_HIT_PX) {
           commitPolygon(points);
           return;
@@ -639,9 +629,52 @@ export default function WhiteboardCanvas({
       return;
     }
     if (tool === "circle" || tool === "rect" || tool === "textbox") {
-      e.currentTarget.setPointerCapture(e.pointerId);
-      gestureRef.current = { kind: "draw", pointerId: e.pointerId, tool, x0: world.x, y0: world.y };
+      const draft = drawDraftRef.current;
+      if (draft && (draft.kind === "circle" || draft.kind === "rect" || draft.kind === "textbox")) {
+        const placed = { kind: tool, x0: draft.x0, y0: draft.y0, x1: world.x, y1: world.y };
+        const box = dragBox(draft.x0, draft.y0, world.x, world.y);
+        const far = tool === "circle"
+          ? Math.hypot(world.x - draft.x0, world.y - draft.y0) >= 1
+          : box.w >= 1 && box.h >= 1;
+        if (far) {
+          placeDrag(placed);
+          syncDraft(null);
+        }
+        return;
+      }
       syncDraft({ kind: tool, x0: world.x, y0: world.y, x1: world.x, y1: world.y });
+    }
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLElement>) {
+    if (e.button !== 0) return;
+    if (!(e.target instanceof Element && e.target.closest(".object-inspector"))) {
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement && active.closest(".object-inspector")) {
+        active.blur();
+      }
+    }
+    if (e.target instanceof Element && e.target.closest("textarea")) return;
+    commitText();
+    if (e.target instanceof Element && e.target.closest("button, .canvas-hud, .add-bar, .object-inspector")) {
+      return;
+    }
+    e.preventDefault();
+    const world = pointerWorld(e);
+    const tool = drawToolRef.current;
+    if (tool && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    if (tool) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      gestureRef.current = {
+        kind: "press",
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        worldX: world.x,
+        worldY: world.y,
+        panX: camera.panX,
+        panY: camera.panY,
+      };
       return;
     }
     const rect = boardRef.current?.getBoundingClientRect();
@@ -749,49 +782,66 @@ export default function WhiteboardCanvas({
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLElement>) {
+    const gesture = gestureRef.current;
+    if (gesture?.kind === "press" && gesture.pointerId === e.pointerId) {
+      if (Math.hypot(e.clientX - gesture.startX, e.clientY - gesture.startY) < CLICK_SLOP) return;
+      gestureRef.current = {
+        kind: "pan",
+        pointerId: gesture.pointerId,
+        startX: gesture.startX,
+        startY: gesture.startY,
+        panX: gesture.panX,
+        panY: gesture.panY,
+      };
+      e.currentTarget.classList.add("is-panning");
+    }
+
+    const active = gestureRef.current;
     const tool = drawToolRef.current;
     const draft = drawDraftRef.current;
-    if (tool === "polygon" && draft?.kind === "polygon" && draft.points.length > 0) {
-      syncDraft({ ...draft, cursor: pointerWorld(e) });
-    } else if (tool === "arrow" && draft?.kind === "arrow" && !gestureRef.current) {
-      const world = pointerWorld(e);
-      syncDraft({ ...draft, x2: world.x, y2: world.y });
+    if (active?.kind !== "pan" && active?.kind !== "press") {
+      if (tool === "polygon" && draft?.kind === "polygon" && draft.points.length > 0) {
+        syncDraft({ ...draft, cursor: pointerWorld(e) });
+      } else if (draft && (
+        (tool === "arrow" && draft.kind === "arrow") ||
+        ((tool === "circle" || tool === "rect" || tool === "textbox") &&
+          (draft.kind === "circle" || draft.kind === "rect" || draft.kind === "textbox"))
+      )) {
+        const world = pointerWorld(e);
+        syncDraft(draft.kind === "arrow"
+          ? { ...draft, x2: world.x, y2: world.y }
+          : { ...draft, x1: world.x, y1: world.y });
+      }
     }
 
-    const gesture = gestureRef.current;
-    if (!gesture || gesture.pointerId !== e.pointerId) return;
+    if (!active || active.pointerId !== e.pointerId) return;
 
-    if (gesture.kind === "draw") {
-      const world = pointerWorld(e);
-      syncDraft({ kind: gesture.tool, x0: gesture.x0, y0: gesture.y0, x1: world.x, y1: world.y });
-      return;
-    }
-
-    if (gesture.kind === "pan") {
+    if (active.kind === "pan") {
       setCamera((current) => ({
         ...current,
-        panX: gesture.panX + (e.clientX - gesture.startX),
-        panY: gesture.panY + (e.clientY - gesture.startY),
+        panX: active.panX + (e.clientX - active.startX),
+        panY: active.panY + (e.clientY - active.startY),
       }));
       return;
     }
+    if (active.kind === "press") return;
 
     const world = pointerWorld(e);
-    if (gesture.kind === "aim" && gesture.orig.object === "arrow") {
-      replaceObject(gesture.end === "tail"
-        ? { ...gesture.orig, x: world.x, y: world.y }
-        : { ...gesture.orig, x2: world.x, y2: world.y });
+    if (active.kind === "aim" && active.orig.object === "arrow") {
+      replaceObject(active.end === "tail"
+        ? { ...active.orig, x: world.x, y: world.y }
+        : { ...active.orig, x2: world.x, y2: world.y });
       return;
     }
-    if (gesture.kind === "vertex" && gesture.orig.object === "polygon") {
-      const points = gesture.orig.points.map((point, index) =>
-        index === gesture.index ? { x: world.x, y: world.y } : point);
-      replaceObject({ ...gesture.orig, x: points[0].x, y: points[0].y, points });
+    if (active.kind === "vertex" && active.orig.object === "polygon") {
+      const points = active.orig.points.map((point, index) =>
+        index === active.index ? { x: world.x, y: world.y } : point);
+      replaceObject({ ...active.orig, x: points[0].x, y: points[0].y, points });
       return;
     }
-    const next = gesture.kind === "move"
-      ? movedObject(gesture.orig, world.x - gesture.startWorldX, world.y - gesture.startWorldY)
-      : scaledObject(gesture.orig, world.x, world.y);
+    const next = active.kind === "move"
+      ? movedObject(active.orig, world.x - active.startWorldX, world.y - active.startWorldY)
+      : scaledObject(active.orig, world.x, world.y);
     replaceObject(next);
   }
 
@@ -804,12 +854,8 @@ export default function WhiteboardCanvas({
     }
     e.currentTarget.classList.remove("is-panning");
 
-    if (gesture.kind === "draw") {
-      const draft = drawDraftRef.current;
-      syncDraft(null);
-      if (draft && (draft.kind === "circle" || draft.kind === "rect" || draft.kind === "textbox")) {
-        placeDrag(draft);
-      }
+    if (gesture.kind === "press") {
+      if (e.type === "pointerup") applyToolClick(gesture.worldX, gesture.worldY, gesture.startX, gesture.startY);
       return;
     }
     if (gesture.kind === "pan") return;
@@ -888,11 +934,11 @@ export default function WhiteboardCanvas({
     };
   }
   const drawHint = drawTool === "circle"
-    ? "Drag to set the center and radius"
+    ? (drawDraft?.kind === "circle" ? "Click the edge" : "Click the center")
     : drawTool === "rect"
-      ? "Drag from the top-left corner to the opposite corner"
+      ? (drawDraft?.kind === "rect" ? "Click the last corner" : "Click the first corner")
       : drawTool === "textbox"
-        ? "Drag to draw the text box"
+        ? (drawDraft?.kind === "textbox" ? "Click the last corner" : "Click the first corner")
         : drawTool === "arrow"
           ? (drawDraft?.kind === "arrow" ? "Click the arrow end" : "Click the arrow start")
           : drawTool === "polygon"
@@ -943,10 +989,10 @@ export default function WhiteboardCanvas({
           ))}
           <g pointerEvents="none">
             {drawPreview && <BoardShape obj={drawPreview} toScreen={toScreen} zoom={zoom} />}
-            {drawDraft?.kind === "arrow" && (
+            {(drawDraft?.kind === "arrow" || drawDraft?.kind === "circle" || drawDraft?.kind === "rect" || drawDraft?.kind === "textbox") && (
               <circle
-                cx={toScreen(drawDraft.x, drawDraft.y).sx}
-                cy={toScreen(drawDraft.x, drawDraft.y).sy}
+                cx={toScreen(drawDraft.kind === "arrow" ? drawDraft.x : drawDraft.x0, drawDraft.kind === "arrow" ? drawDraft.y : drawDraft.y0).sx}
+                cy={toScreen(drawDraft.kind === "arrow" ? drawDraft.x : drawDraft.x0, drawDraft.kind === "arrow" ? drawDraft.y : drawDraft.y0).sy}
                 r={3.5}
                 fill="#fbfbf8"
                 stroke="#344b2d"
