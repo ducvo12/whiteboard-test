@@ -3,7 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { mkdtempSync, mkdirSync, symlinkSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, symlinkSync, rmSync } from "node:fs";
 import { CODEX_CONFIG_ARGS, CODEX_POLICY_VERSION } from "./policy";
 import { join } from "node:path";
 
@@ -178,8 +178,21 @@ class CodexServer {
 
 // Preserve one child process across requests and Next.js development hot reloads.
 const shared = globalThis as typeof globalThis & { whiteboardCodex?: CodexServer };
+const BUNDLED_CODEX = [
+  "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
+  "/Applications/ChatGPT.app/Contents/Resources/codex",
+];
+
+function codexBinary(): string {
+  const configured = process.env.CODEX_BIN;
+  if (configured && existsSync(configured)) return configured;
+  const bundled = BUNDLED_CODEX.find((path) => existsSync(path));
+  if (bundled) return bundled;
+  return configured || "codex";
+}
+
 function getCodex(): CodexServer {
-  const binary = process.env.CODEX_BIN || "codex";
+  const binary = codexBinary();
   if (!shared.whiteboardCodex?.alive || shared.whiteboardCodex.binary !== binary || shared.whiteboardCodex.policyVersion !== CODEX_POLICY_VERSION) {
     shared.whiteboardCodex?.stop();
     shared.whiteboardCodex = new CodexServer(binary);
