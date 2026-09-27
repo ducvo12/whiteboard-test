@@ -397,6 +397,12 @@ textarea:focus-visible {
     color: var(--ink);
 }
 
+.inspector-divider {
+    height: 1px;
+    margin: 2px 0;
+    background: var(--line);
+}
+
 .object-inspector label {
     display: flex;
     align-items: center;

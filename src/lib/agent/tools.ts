@@ -43,7 +43,7 @@ export const toolDescriptions: Tool[] = [
     },
     {
         tool_name: "update_object",
-        tool_description: "update an object with a given id",
+        tool_description: "update an object with a given id. labelX and labelY move an existing label: 0.5 is the middle, 0 is the left or bottom edge, and 1 is the right or top edge.",
         arguments: z.toJSONSchema(UpdateObjectSchema),
         inputSchema: UpdateObjectSchema,
         execute: updateObject

@@ -8,6 +8,12 @@ const ShapeBaseSchema = z.object({
     fillOpacity: z.number().min(0).max(1).optional(),
     strokeWidth: z.number().nonnegative(),
     rotation: z.number().describe("Degrees counterclockwise around the object center. 0 is unrotated. Y increases upward, so 90 turns the object's right side toward the top of the board."),
+    label: z.string().optional().describe("Optional text drawn in a small box on the object. An empty string draws nothing. Position comes from labelX and labelY."),
+    labelX: z.number().optional().describe("Label center as a fraction of the object width. 0 is the left edge, 1 is the right edge, 0.5 is the middle. Values may sit slightly outside 0..1 so the text can hang off an edge."),
+    labelY: z.number().optional().describe("Label center as a fraction of the object height. 0 is the bottom edge, 1 is the top edge, 0.5 is the middle. Y increases upward."),
+    labelFontSize: z.number().positive().optional(),
+    labelColor: z.string().min(1).optional(),
+    labelBackground: z.string().min(1).optional(),
 });
 
 export const CircleSchema = ShapeBaseSchema.extend({

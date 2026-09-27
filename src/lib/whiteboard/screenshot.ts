@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
 import { objectBounds, unionBounds } from "./geometry";
+import { LABEL_BACKGROUND, LABEL_COLOR, labelPlacement } from "./label";
 import { StoredObjectSchemaType } from "./schemas";
 
 const PAD = 48;
@@ -68,6 +69,15 @@ function shapeSvg(
 
   const bounds = objectBounds(obj);
   const center = toScreen((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
+  const text = obj.label?.trim();
+  if (text) {
+    const place = labelPlacement(obj, text);
+    const at = toScreen(place.cx, place.cy);
+    const w = place.w * scale;
+    const h = place.h * scale;
+    body += `<rect x="${at.sx - w / 2}" y="${at.sy - h / 2}" width="${w}" height="${h}" rx="3" fill="${xml(obj.labelBackground || LABEL_BACKGROUND)}" stroke="#e3e5dc"/>
+      <text x="${at.sx}" y="${at.sy}" text-anchor="middle" dominant-baseline="central" fill="${xml(obj.labelColor || LABEL_COLOR)}" font-family="Helvetica, Arial, sans-serif" font-size="${place.h * scale}">${xml(text)}</text>`;
+  }
   return `<g transform="rotate(${-(obj.rotation ?? 0)} ${center.sx} ${center.sy})">${body}</g>`;
 }
 

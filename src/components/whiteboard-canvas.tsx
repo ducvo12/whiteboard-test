@@ -16,6 +16,7 @@ import {
   unionBounds,
   zoomAtScreenPoint,
 } from "@/lib/whiteboard/geometry";
+import { LABEL_BACKGROUND, LABEL_COLOR, LABEL_FONT, labelPlacement } from "@/lib/whiteboard/label";
 
 const MOBILE_QUERY = "(max-width: 720px)";
 const POLL_MS = 800;
@@ -71,6 +72,12 @@ type Gesture =
       pointerId: number;
       id: string;
       index: number;
+      orig: StoredObjectSchemaType;
+    }
+  | {
+      kind: "label";
+      pointerId: number;
+      id: string;
       orig: StoredObjectSchemaType;
     }
   | {
@@ -149,6 +156,24 @@ function rotatedScreen(sx: number, sy: number, cx: number, cy: number, rotation:
     sx: cx + dx * cos - dy * sin,
     sy: cy + dx * sin + dy * cos,
   };
+}
+
+function hitLabel(worldX: number, worldY: number, objects: StoredObjectSchemaType[]) {
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const text = objects[i].label?.trim();
+    if (!text) continue;
+    const place = labelPlacement(objects[i], text);
+    const local = localWorld(objects[i], worldX, worldY);
+    if (
+      local.x >= place.cx - place.w / 2 &&
+      local.x <= place.cx + place.w / 2 &&
+      local.y >= place.cy - place.h / 2 &&
+      local.y <= place.cy + place.h / 2
+    ) {
+      return objects[i];
+    }
+  }
+  return null;
 }
 
 function hitObject(worldX: number, worldY: number, objects: StoredObjectSchemaType[]) {
@@ -930,6 +955,20 @@ export default function WhiteboardCanvas({
       }
     }
 
+    const labeled = hitLabel(world.x, world.y, objectsRef.current);
+    if (labeled) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      gestureRef.current = {
+        kind: "label",
+        pointerId: e.pointerId,
+        id: labeled.id,
+        orig: labeled,
+      };
+      setSelectedId(labeled.id);
+      setEditingId(null);
+      return;
+    }
+
     const hit = hitObject(world.x, world.y, objectsRef.current);
     if (hit) {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -1025,6 +1064,19 @@ export default function WhiteboardCanvas({
       replaceObject({ ...active.orig, x: points[0].x, y: points[0].y, points });
       return;
     }
+    if (active.kind === "label") {
+      const bounds = objectBounds(active.orig);
+      const spanX = Math.max(bounds.maxX - bounds.minX, 1);
+      const spanY = Math.max(bounds.maxY - bounds.minY, 1);
+      const text = active.orig.label?.trim() ?? "";
+      const place = labelPlacement({
+        ...active.orig,
+        labelX: (local.x - bounds.minX) / spanX,
+        labelY: (local.y - bounds.minY) / spanY,
+      }, text);
+      replaceObject({ ...active.orig, labelX: place.labelX, labelY: place.labelY });
+      return;
+    }
     const next = active.kind === "move"
       ? movedObject(active.orig, world.x - active.startWorldX, world.y - active.startWorldY)
       : scaledObject(active.orig, local.x, local.y);
@@ -1047,6 +1099,10 @@ export default function WhiteboardCanvas({
     if (gesture.kind === "pan") return;
     const obj = objectsRef.current.find((item) => item.id === gesture.id);
     if (!obj) return;
+    if (gesture.kind === "label") {
+      void savePatch(gesture.id, { labelX: obj.labelX, labelY: obj.labelY });
+      return;
+    }
     void savePatch(gesture.id, geometryPatch(obj));
   }
 
@@ -1413,6 +1469,29 @@ export default function WhiteboardCanvas({
           <label>Stroke<input type="color" value={selected.strokeColor} onChange={(event) => editObject({ strokeColor: event.target.value })} /></label>
           <label>Fill<input type="color" value={selected.fillColor} onChange={(event) => editObject({ fillColor: event.target.value })} /></label>
           <label>Stroke width{numberInput("strokeWidth", selected.strokeWidth, 0)}</label>
+          <div className="inspector-divider" />
+          <label>Label<input
+            type="text"
+            placeholder="None"
+            value={selected.label ?? ""}
+            onChange={(event) => {
+              const label = event.target.value;
+              if (!label.trim()) {
+                editObject({ label: "" });
+                return;
+              }
+              const fresh = !selected.label?.trim();
+              const place = labelPlacement({
+                ...selected,
+                labelX: fresh ? 0.5 : selected.labelX,
+                labelY: fresh ? 0.5 : selected.labelY,
+              }, label.trim());
+              editObject({ label, labelX: place.labelX, labelY: place.labelY });
+            }}
+          /></label>
+          <label>Font size{numberInput("labelFontSize", selected.labelFontSize ?? LABEL_FONT, 1)}</label>
+          <label>Color<input type="color" value={selected.labelColor || LABEL_COLOR} onChange={(event) => editObject({ labelColor: event.target.value })} /></label>
+          <label>Background<input type="color" value={selected.labelBackground || LABEL_BACKGROUND} onChange={(event) => editObject({ labelBackground: event.target.value })} /></label>
         </form>
       )}
 
