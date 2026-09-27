@@ -33,9 +33,8 @@ export function createResponseExtractor() {
         status = statusMatch[1] as ResponseStatus;
       }
 
-      // Tool calls and failures should not be streamed to the UI.
-      // Their complete JSON will be handled after askCodex finishes.
-      if (status !== "success") {
+      // Tool calls stay out of the chat. Success and failure text is shown.
+      if (status !== "success" && status !== "failure") {
         return { status, delta: "" };
       }
 
@@ -103,7 +102,7 @@ export function createResponseExtractor() {
         throw new Error("AI response did not include a valid status.");
       }
 
-      if (status === "success" && !resFinished) {
+      if ((status === "success" || status === "failure") && !resFinished) {
         throw new Error("AI returned an incomplete res string.");
       }
 

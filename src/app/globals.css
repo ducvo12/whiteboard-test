@@ -178,6 +178,338 @@ textarea:focus-visible {
     right: calc(var(--chat-width) + 24px);
 }
 
+.add-bar {
+    position: absolute;
+    top: var(--hud-inset);
+    left: var(--hud-inset);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+}
+
+.add-bar button {
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 8px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.add-bar button:hover:enabled {
+    background: var(--olive-soft);
+}
+
+.add-bar button[aria-pressed="true"] {
+    background: var(--olive);
+    color: var(--paper-raised);
+}
+
+.add-bar button[aria-pressed="true"]:hover:enabled {
+    background: var(--olive-hover);
+}
+
+.style-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0;
+    width: max-content;
+    max-width: calc(100vw - (var(--hud-inset) * 2));
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+}
+
+.style-menu label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    color: var(--ink-muted);
+}
+
+.style-menu label + label {
+    border-left: 1px solid var(--line);
+}
+
+.style-tip {
+    position: relative;
+    display: flex;
+}
+
+.style-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.style-tip:hover::after {
+    opacity: 1;
+}
+
+.style-glyph {
+    display: block;
+    flex: none;
+}
+
+.style-menu input[type="color"] {
+    width: 22px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: none;
+}
+
+.style-menu input[type="text"] {
+    width: 36px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 3px 4px;
+    font: inherit;
+    font-size: 12px;
+}
+
+.clear-confirm {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(31, 36, 28, 0.28);
+}
+
+.clear-confirm-box {
+    width: 240px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+}
+
+.clear-confirm-box p {
+    margin: 0 0 14px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.clear-confirm-box div {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.clear-confirm-box button {
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.clear-confirm-box button:hover:enabled {
+    background: var(--olive-soft);
+}
+
+.clear-confirm-box button.clear-confirm-yes {
+    background: #c0392b;
+    color: #fff;
+}
+
+.clear-confirm-box button.clear-confirm-yes:hover:enabled {
+    background: #a93226;
+}
+
+.canvas.is-drawing,
+.canvas.is-drawing svg {
+    cursor: crosshair;
+}
+
+.draw-hint {
+    position: absolute;
+    top: 108px;
+    left: var(--hud-inset);
+    z-index: 5;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+    color: var(--ink-muted);
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.draw-preview {
+    fill: var(--olive-soft);
+    stroke: var(--olive);
+    stroke-width: 1.5;
+}
+
+.object-inspector {
+    position: absolute;
+    top: 52px;
+    left: var(--hud-inset);
+    z-index: 5;
+    width: 196px;
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+    font-size: 12px;
+}
+
+.inspector-title {
+    font-weight: 600;
+    text-transform: capitalize;
+    color: var(--ink);
+}
+
+.inspector-divider {
+    height: 1px;
+    margin: 2px 0;
+    background: var(--line);
+}
+
+.object-inspector label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--ink-muted);
+}
+
+.object-inspector input[type="number"],
+.object-inspector input[type="text"] {
+    width: 92px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 4px 6px;
+    font: inherit;
+}
+
+.point-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--ink-muted);
+}
+
+.point-stepper > div {
+    display: flex;
+    align-items: center;
+    width: 92px;
+    height: 26px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    overflow: hidden;
+}
+
+.point-stepper button {
+    width: 26px;
+    height: 26px;
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1;
+}
+
+.point-stepper button:hover:enabled {
+    background: var(--olive-soft);
+}
+
+.point-stepper > div span {
+    flex: 1;
+    text-align: center;
+    color: var(--ink);
+}
+
+.object-inspector input[type="color"] {
+    width: 28px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: none;
+}
+
+.selection rect {
+    fill: none;
+    stroke: var(--olive);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+}
+
+.rotate-stem {
+    stroke: var(--olive);
+    stroke-width: 1;
+}
+
+.scale-handle,
+.endpoint-handle {
+    fill: var(--paper-raised);
+    stroke: var(--olive);
+    stroke-width: 1.5;
+    stroke-dasharray: none;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 80ms ease;
+}
+
+.scale-handle:hover,
+.endpoint-handle:hover {
+    transform: scale(1.7);
+}
+
+.textbox-editor {
+    position: absolute;
+    z-index: 6;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 6px;
+    border: 1px solid var(--olive);
+    border-radius: 0;
+    background: var(--paper-raised);
+    resize: none;
+    line-height: 1.3;
+    font-family: inherit;
+}
+
 .canvas-hud {
     position: absolute;
     left: auto;

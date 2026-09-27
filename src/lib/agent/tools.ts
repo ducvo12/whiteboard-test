@@ -22,7 +22,7 @@ export const toolDescriptions: Tool[] = [
     },
     {
         tool_name: "add_shape",
-        tool_description: "adds either a rect, circle, or polygon to the canvas.",
+        tool_description: "adds either a rect, circle, polygon, or arrow to the canvas.",
         arguments: z.toJSONSchema(CreateShapeSchema),
         inputSchema: CreateShapeSchema,
         execute: createShape
@@ -43,16 +43,9 @@ export const toolDescriptions: Tool[] = [
     },
     {
         tool_name: "update_object",
-        tool_description: "update an object with a given id",
+        tool_description: "update an object with a given id. labelX and labelY move an existing label: 0.5 is the middle, 0 is the left or bottom edge, and 1 is the right or top edge.",
         arguments: z.toJSONSchema(UpdateObjectSchema),
         inputSchema: UpdateObjectSchema,
         execute: updateObject
     },
-    {
-        tool_name: "get_corner_coordinates",
-        tool_description: "get coordinates of bottom-left and top-right of exposed screen",
-        arguments: z.toJSONSchema(NoArgumentsSchema),
-        inputSchema: NoArgumentsSchema,
-        execute: getCoordinates
-    }
 ]

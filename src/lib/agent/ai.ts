@@ -1,6 +1,9 @@
 import "server-only";
+import { rm } from "node:fs/promises";
 import { askCodex } from "../codex/server";
 import { createResponseExtractor } from "../response-extractor";
+import { writeBoardScreenshot } from "../whiteboard/screenshot";
+import { listObjects } from "../whiteboard/services";
 import { toolDescriptions } from "./tools";
 
 const BASE_INSTRUCTIONS = `
@@ -51,6 +54,7 @@ Sample tool call:
 }
 
 Once a mutation succeeds, do not mutate the same property again for the same user instruction unless the user explicitly requested iteration or the tool reported failure.
+If you want to rotate a basic shape, prefer updating the rotation value rather than making a polygon and calculating its rotated points.
 
 The whiteboard uses a Cartesian coordinate system, not screen/SVG coordinates:
 - Origin (0, 0) is the bottom-left corner.
@@ -63,6 +67,9 @@ Shape anchors in this same system:
 - circle: (x, y) is the center.
 - polygon: each entry in points is an absolute world vertex.
 - textbox: (x, y) is the bottom-left corner. The box occupies x..x+w and y..y+h. Text is drawn inside.
+- rotation is degrees counterclockwise around the object center. 0 is unrotated. Include "rotation": 0 when creating an object unless the user asked for an angle.
+- Down the board means smaller y. Along a slope, downhill is toward the endpoint with the smaller y, and x moves toward that same endpoint. The arrow tip is (x2, y2). Kinetic friction points the opposite way along that slope.
+- After every tool round, the next turn includes a picture of the current board. You do not call a screenshot tool. Use the picture to check positions and directions. If the picture is wrong, fix the objects with tools. Do not return status failure just because the picture looks wrong. A new picture is attached after that fix.
 
 If you decide that the status is either "success" or "failure", you may use markdown formatting, including bold, lists, etc.
 
@@ -73,7 +80,8 @@ If you decide that the status is either "success" or "failure", you may use mark
 export async function generateResponse(prompt: string, signal: AbortSignal, sendDelta?: (delta: string) => void): Promise<string> {
   const messages: { role: String, specific?: String, call_id?: String, content: unknown }[] = [];
 
-  let response = "";
+  let images: string[] = [];
+  let streamed = false;
 
   // push prompt to messages first
   messages.push({
@@ -85,49 +93,55 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
   console.log()
 
   // run
-  while (true) {
+  for (let round = 0; round < 8; round++) {
     const extractor = createResponseExtractor();
-    let inIterAgentResponse = "";
 
-    await askCodex({
-      instructions: BASE_INSTRUCTIONS,
-      prompt: JSON.stringify(messages, null, 2),
-      signal: signal,
-      onDelta: (chunk) => {
-        inIterAgentResponse += chunk;
+    const attached = images;
+    images = [];
+    let answer = "";
+    try {
+      answer = await askCodex({
+        instructions: BASE_INSTRUCTIONS,
+        prompt: JSON.stringify(messages, null, 2),
+        images: attached,
+        signal: signal,
+        onDelta: (chunk) => {
+          const { status, delta } = extractor.push(chunk);
 
-        const { status, delta } = extractor.push(chunk);
+          if ((status === "success" || status === "failure") && delta) {
+            streamed = true;
+            sendDelta?.(delta);
+          }
+        },
+      });
+    } finally {
+      await Promise.all(attached.map((path) => rm(path, { force: true })));
+    }
 
-        if ((status === "success" || status === "failure") && delta) {
-          response += chunk;
-          sendDelta?.(delta);
-        }
-      },
-    });
-    const status = extractor.finish();
+    let toolCallJson: any;
+    const fenced = answer.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+    try {
+      toolCallJson = JSON.parse(fenced ? fenced[1] : answer);
+    } catch {
+      console.log("unparsed agent reply");
+      console.log(answer);
+      messages.push({
+        role: "error1",
+        content: "That reply was not valid JSON. Return one JSON object and nothing else."
+      });
+      continue;
+    }
+    const status = toolCallJson?.status;
 
     if (status === "tool_call") {
-
-      let toolCallJson: any;
-
-      // validate json
-      try {
-        toolCallJson = JSON.parse(inIterAgentResponse);
-      } catch (err) {
-        messages.push({
-          role: "error1",
-          content: "error1"
-        });
-        break;
-      }
 
       // validate res array
       if (!toolCallJson.res || !Array.isArray(toolCallJson.res)) {
         messages.push({
           role: "error2",
-          content: "error2"
+          content: "A tool_call res must be an array of tool objects."
         });
-        break;
+        continue;
       }
 
       // add tool call id
@@ -188,10 +202,26 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
         });
 
       }
+
+      const shot = writeBoardScreenshot(listObjects({}));
+      images.push(shot.imagePath);
+      messages.push({
+        role: "board_screenshot",
+        content: `A picture of the current board is attached to this turn. The picture is ${shot.width} by ${shot.height} pixels. Y increases upward.`,
+      });
+      continue;
     }
 
     // break when done
     if (status === "success" || status === "failure") {
+      if (!streamed) {
+        const text = typeof toolCallJson.res === "string" && toolCallJson.res.trim()
+          ? toolCallJson.res
+          : "The assistant could not finish that request.";
+        streamed = true;
+        sendDelta?.(text);
+      }
+      console.log(status);
       console.log();
       console.log("messages");
       console.log(JSON.stringify(messages, null, 1))
@@ -199,8 +229,14 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
 
       break;
     }
+
+    messages.push({
+      role: "error",
+      content: "status must be success, failure, or tool_call."
+    });
   }
 
-  // return
-  return response;
+  if (!streamed) sendDelta?.("Stopped before a final answer.");
+  await Promise.all(images.map((path) => rm(path, { force: true })));
+  return "";
 }

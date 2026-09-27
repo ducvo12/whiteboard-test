@@ -28,15 +28,6 @@ export default function Sidebar({
         if (open) textareaRef.current?.focus();
     }, [open]);
 
-    useEffect(() => {
-        if (!open) return;
-        function onKey(event: globalThis.KeyboardEvent) {
-            if (event.key === "Escape") onOpenChange(false);
-        }
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [open, onOpenChange]);
-
     async function send(nextPrompt: string) {
         const text = nextPrompt.trim();
         if (loading || !text) return;
