@@ -1,4 +1,5 @@
 import "server-only";
+import { rm } from "node:fs/promises";
 import { askCodex } from "../codex/server";
 import { createResponseExtractor } from "../response-extractor";
 import { toolDescriptions } from "./tools";
@@ -51,6 +52,7 @@ Sample tool call:
 }
 
 Once a mutation succeeds, do not mutate the same property again for the same user instruction unless the user explicitly requested iteration or the tool reported failure.
+If you want to rotate a basic shape, prefer updating the rotation value rather than making a polygon and calculating its rotated points.
 
 The whiteboard uses a Cartesian coordinate system, not screen/SVG coordinates:
 - Origin (0, 0) is the bottom-left corner.
@@ -63,6 +65,9 @@ Shape anchors in this same system:
 - circle: (x, y) is the center.
 - polygon: each entry in points is an absolute world vertex.
 - textbox: (x, y) is the bottom-left corner. The box occupies x..x+w and y..y+h. Text is drawn inside.
+- rotation is degrees counterclockwise around the object center. 0 is unrotated. Include "rotation": 0 when creating an object unless the user asked for an angle.
+- Down the board means smaller y. Along a slope, downhill is toward the endpoint with the smaller y, and x moves toward that same endpoint. The arrow tip is (x2, y2). Kinetic friction points the opposite way along that slope.
+- After you add or change objects, call screenshot_board before status success. The next turn includes a picture of the board. If the picture shows a wrong direction, fix it, then you may call screenshot_board once more.
 
 If you decide that the status is either "success" or "failure", you may use markdown formatting, including bold, lists, etc.
 
@@ -74,6 +79,7 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
   const messages: { role: String, specific?: String, call_id?: String, content: unknown }[] = [];
 
   let response = "";
+  let images: string[] = [];
 
   // push prompt to messages first
   messages.push({
@@ -89,21 +95,28 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
     const extractor = createResponseExtractor();
     let inIterAgentResponse = "";
 
-    await askCodex({
-      instructions: BASE_INSTRUCTIONS,
-      prompt: JSON.stringify(messages, null, 2),
-      signal: signal,
-      onDelta: (chunk) => {
-        inIterAgentResponse += chunk;
+    const attached = images;
+    images = [];
+    try {
+      await askCodex({
+        instructions: BASE_INSTRUCTIONS,
+        prompt: JSON.stringify(messages, null, 2),
+        images: attached,
+        signal: signal,
+        onDelta: (chunk) => {
+          inIterAgentResponse += chunk;
 
-        const { status, delta } = extractor.push(chunk);
+          const { status, delta } = extractor.push(chunk);
 
-        if ((status === "success" || status === "failure") && delta) {
-          response += chunk;
-          sendDelta?.(delta);
-        }
-      },
-    });
+          if ((status === "success" || status === "failure") && delta) {
+            response += chunk;
+            sendDelta?.(delta);
+          }
+        },
+      });
+    } finally {
+      await Promise.all(attached.map((path) => rm(path, { force: true })));
+    }
     const status = extractor.finish();
 
     if (status === "tool_call") {
@@ -180,11 +193,17 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
         console.log();
 
         const ret = specificTool.execute(argumentParse.data);
+        const shot = ret && typeof ret === "object" && "imagePath" in ret
+          ? ret as { imagePath: string; width: number; height: number }
+          : null;
+        if (shot) images.push(shot.imagePath);
         messages.push({
           role: "tool_call_result",
           specific: tool.tool_name,
           call_id: tool.call_id,
-          content: ret
+          content: shot
+            ? `Screenshot of the current board is attached. The picture is ${shot.width} by ${shot.height} pixels. Y increases upward.`
+            : ret
         });
 
       }
@@ -201,6 +220,6 @@ export async function generateResponse(prompt: string, signal: AbortSignal, send
     }
   }
 
-  // return
+  await Promise.all(images.map((path) => rm(path, { force: true })));
   return response;
 }

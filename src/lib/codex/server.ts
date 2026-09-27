@@ -19,6 +19,7 @@ type ActiveTurn = { onDelta?: (delta: string) => void; text: string; resolve: (t
 export type CodexRequest = {
   instructions: string;
   prompt: string;
+  images?: string[];
   signal: AbortSignal;
   onDelta?: (delta: string) => void;
 };
@@ -110,7 +111,7 @@ class CodexServer {
     }
     const params = message.params;
     if (message.method === "item/started" && params?.item &&
-      !["userMessage", "agentMessage", "reasoning"].includes(params.item.type)) {
+      !["userMessage", "agentMessage", "reasoning", "imageView"].includes(params.item.type)) {
       this.stop(new Error("Unexpected agent activity; text-only session stopped."));
       return;
     }
@@ -138,7 +139,7 @@ class CodexServer {
     this.turns.clear();
   }
 
-  async answer({ instructions, prompt, signal, onDelta }: CodexRequest) {
+  async answer({ instructions, prompt, images = [], signal, onDelta }: CodexRequest) {
     await this.ready;
     signal.throwIfAborted();
     const directory = await mkdtemp(join(tmpdir(), "whiteboard-chat-"));
@@ -165,7 +166,11 @@ class CodexServer {
         this.turns.set(threadId!, { text: "", onDelta, resolve: (text) => finish(undefined, text), reject: finish });
         signal.addEventListener("abort", abort, { once: true });
         void this.request("turn/start", {
-          threadId, input: [{ type: "text", text: prompt }],
+          threadId,
+          input: [
+            { type: "text", text: prompt },
+            ...images.map((path) => ({ type: "localImage", path })),
+          ],
         }).catch((error) => finish(error));
       });
     } finally {

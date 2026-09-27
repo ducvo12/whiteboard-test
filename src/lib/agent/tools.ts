@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 import { CreateShapeSchema, DeleteObjectSchema, NoArgumentsSchema, TextboxSchema, UpdateObjectSchema } from "../whiteboard/schemas";
+import { writeBoardScreenshot } from "../whiteboard/screenshot";
 import { createShape, createTextbox, deleteObject, getCoordinates, listObjects, updateObject } from "../whiteboard/services";
 
 export interface Tool {
@@ -47,5 +48,12 @@ export const toolDescriptions: Tool[] = [
         arguments: z.toJSONSchema(UpdateObjectSchema),
         inputSchema: UpdateObjectSchema,
         execute: updateObject
+    },
+    {
+        tool_name: "screenshot_board",
+        tool_description: "Takes a picture of the current whiteboard. Call this after changing the board and before the final answer. The picture is attached to the next turn. Y increases upward in the picture.",
+        arguments: z.toJSONSchema(NoArgumentsSchema),
+        inputSchema: NoArgumentsSchema,
+        execute: () => writeBoardScreenshot(listObjects({}))
     }
 ]
