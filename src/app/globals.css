@@ -215,6 +215,88 @@ textarea:focus-visible {
     background: var(--olive-hover);
 }
 
+.style-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0;
+    width: max-content;
+    max-width: calc(100vw - (var(--hud-inset) * 2));
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper-raised);
+    box-shadow: var(--shadow);
+}
+
+.style-menu label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    color: var(--ink-muted);
+}
+
+.style-menu label + label {
+    border-left: 1px solid var(--line);
+}
+
+.style-tip {
+    position: relative;
+    display: flex;
+}
+
+.style-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+}
+
+.style-tip:hover::after {
+    opacity: 1;
+}
+
+.style-glyph {
+    display: block;
+    flex: none;
+}
+
+.style-menu input[type="color"] {
+    width: 22px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: none;
+}
+
+.style-menu input[type="text"] {
+    width: 36px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 3px 4px;
+    font: inherit;
+    font-size: 12px;
+}
+
 .clear-confirm {
     position: absolute;
     inset: 0;
@@ -274,7 +356,7 @@ textarea:focus-visible {
 
 .draw-hint {
     position: absolute;
-    top: 52px;
+    top: 108px;
     left: var(--hud-inset);
     z-index: 5;
     padding: 6px 10px;

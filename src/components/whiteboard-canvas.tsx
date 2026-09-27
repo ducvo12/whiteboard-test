@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import BoardShape from "@/components/shapes/board-shape";
 import CanvasHud from "@/components/canvas-hud";
 import { BoardObjectSchemaType, StoredObjectSchemaType } from "@/lib/whiteboard/schemas";
@@ -24,11 +24,22 @@ const HANDLE_PX = 12;
 const END_HIT_PX = 8;
 const CLICK_SLOP = 5;
 
-const PAINT = {
+type PlaceStyle = {
+  strokeColor: string;
+  fillColor: string;
+  fillOpacity: number;
+  strokeWidth: number;
+  textColor: string;
+  fontSize: number;
+};
+
+const PLACE_STYLE: PlaceStyle = {
   strokeColor: "#344b2d",
   fillColor: "#c5d4b4",
+  fillOpacity: 1,
   strokeWidth: 2,
-  rotation: 0,
+  textColor: "#1f241c",
+  fontSize: 18,
 };
 
 type Gesture =
@@ -287,6 +298,8 @@ export default function WhiteboardCanvas({
   const [drawTool, setDrawTool] = useState<DrawTool | null>(null);
   const [drawDraft, setDrawDraft] = useState<DrawDraft | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [placeStyle, setPlaceStyle] = useState<PlaceStyle>(PLACE_STYLE);
+  const [styleDrafts, setStyleDrafts] = useState<Record<string, string>>({});
   const editingIdRef = useRef<string | null>(null);
   const draftRef = useRef("");
   const numberDraftsRef = useRef<Record<string, string>>({});
@@ -540,6 +553,57 @@ export default function WhiteboardCanvas({
     );
   }
 
+  function styleNumber(field: "fillOpacity" | "strokeWidth" | "fontSize", label: string, min: number, max = Infinity) {
+    const current = placeStyle[field];
+    return (
+      <input
+        type="text"
+        inputMode="decimal"
+        aria-label={label}
+        value={styleDrafts[field] ?? String(current)}
+        onChange={(event) => {
+          const raw = event.target.value;
+          setStyleDrafts((drafts) => ({ ...drafts, [field]: raw }));
+          const value = Number(raw);
+          if (raw.trim() === "" || !Number.isFinite(value) || value < min || value > max) return;
+          setPlaceStyle((style) => ({ ...style, [field]: value }));
+        }}
+        onBlur={(event) => {
+          const raw = event.currentTarget.value;
+          const value = Number(raw);
+          if (raw.trim() === "" || !Number.isFinite(value)) {
+            if (min <= 0) setPlaceStyle((style) => ({ ...style, [field]: 0 }));
+          } else if (value < min) {
+            setPlaceStyle((style) => ({ ...style, [field]: min }));
+          } else if (value > max) {
+            setPlaceStyle((style) => ({ ...style, [field]: max }));
+          } else {
+            setPlaceStyle((style) => ({ ...style, [field]: value }));
+          }
+          setStyleDrafts((drafts) => {
+            const next = { ...drafts };
+            delete next[field];
+            return next;
+          });
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+      />
+    );
+  }
+
+  function styleColor(field: "strokeColor" | "fillColor" | "textColor", label: string) {
+    return (
+      <input
+        type="color"
+        aria-label={label}
+        value={placeStyle[field]}
+        onChange={(event) => setPlaceStyle((style) => ({ ...style, [field]: event.target.value }))}
+      />
+    );
+  }
+
   async function clearBoard() {
     gestureRef.current = null;
     setSelectedId(null);
@@ -566,6 +630,16 @@ export default function WhiteboardCanvas({
     setEditingId(null);
   }
 
+  function placedPaint() {
+    return {
+      strokeColor: placeStyle.strokeColor,
+      fillColor: placeStyle.fillColor,
+      fillOpacity: placeStyle.fillOpacity,
+      strokeWidth: placeStyle.strokeWidth,
+      rotation: 0,
+    };
+  }
+
   function syncDraw(tool: DrawTool | null, draft: DrawDraft | null) {
     drawToolRef.current = tool;
     drawDraftRef.current = draft;
@@ -585,8 +659,7 @@ export default function WhiteboardCanvas({
       x: points[0].x,
       y: points[0].y,
       points,
-      ...PAINT,
-      fillOpacity: 0.85,
+      ...placedPaint(),
     });
     if (drawToolRef.current === "polygon") {
       syncDraft({ kind: "polygon", points: [], cursor: null });
@@ -599,22 +672,22 @@ export default function WhiteboardCanvas({
     if (draft.kind === "circle") {
       const r = Math.hypot(draft.x1 - draft.x0, draft.y1 - draft.y0);
       if (r < 1) return;
-      void addObject({ object: "circle", x: draft.x0, y: draft.y0, r, ...PAINT });
+      void addObject({ object: "circle", x: draft.x0, y: draft.y0, r, ...placedPaint() });
       return;
     }
     const box = dragBox(draft.x0, draft.y0, draft.x1, draft.y1);
     if (box.w < 1 || box.h < 1) return;
     if (draft.kind === "rect") {
-      void addObject({ object: "rect", ...box, ...PAINT });
+      void addObject({ object: "rect", ...box, ...placedPaint() });
       return;
     }
     void addObject({
       object: "textbox",
       ...box,
       text: "Text",
-      fontSize: 18,
-      textColor: "#1f241c",
-      ...PAINT,
+      fontSize: placeStyle.fontSize,
+      textColor: placeStyle.textColor,
+      ...placedPaint(),
     });
   }
 
@@ -627,8 +700,7 @@ export default function WhiteboardCanvas({
         x: draft.points[0].x,
         y: draft.points[0].y,
         points: draft.points,
-        ...PAINT,
-        fillOpacity: 0.85,
+        ...placedPaint(),
       });
     }
     if (current === tool) {
@@ -687,7 +759,7 @@ export default function WhiteboardCanvas({
             y: draft.y,
             x2: world.x,
             y2: world.y,
-            ...PAINT,
+            ...placedPaint(),
           });
           syncDraft(null);
         }
@@ -716,9 +788,10 @@ export default function WhiteboardCanvas({
 
   function onPointerDown(e: React.PointerEvent<HTMLElement>) {
     if (e.button !== 0) return;
-    if (!(e.target instanceof Element && e.target.closest(".object-inspector"))) {
+    const inFields = e.target instanceof Element && e.target.closest(".object-inspector, .style-menu");
+    if (!inFields) {
       const active = document.activeElement;
-      if (active instanceof HTMLInputElement && active.closest(".object-inspector")) {
+      if (active instanceof HTMLInputElement && active.closest(".object-inspector, .style-menu")) {
         active.blur();
       }
     }
@@ -1032,13 +1105,13 @@ export default function WhiteboardCanvas({
   let drawPreview: StoredObjectSchemaType | null = null;
   if (drawDraft?.kind === "circle") {
     const r = Math.hypot(drawDraft.x1 - drawDraft.x0, drawDraft.y1 - drawDraft.y0);
-    if (r >= 1) drawPreview = { id: "draft", object: "circle", x: drawDraft.x0, y: drawDraft.y0, r, ...PAINT };
+    if (r >= 1) drawPreview = { id: "draft", object: "circle", x: drawDraft.x0, y: drawDraft.y0, r, ...placedPaint() };
   } else if (drawDraft?.kind === "rect" || drawDraft?.kind === "textbox") {
     const box = dragBox(drawDraft.x0, drawDraft.y0, drawDraft.x1, drawDraft.y1);
     if (box.w >= 1 && box.h >= 1) {
       drawPreview = drawDraft.kind === "rect"
-        ? { id: "draft", object: "rect", ...box, ...PAINT }
-        : { id: "draft", object: "textbox", ...box, text: "Text", fontSize: 18, textColor: "#1f241c", ...PAINT };
+        ? { id: "draft", object: "rect", ...box, ...placedPaint() }
+        : { id: "draft", object: "textbox", ...box, text: "Text", fontSize: placeStyle.fontSize, textColor: placeStyle.textColor, ...placedPaint() };
     }
   } else if (drawDraft?.kind === "arrow" && Math.hypot(drawDraft.x2 - drawDraft.x, drawDraft.y2 - drawDraft.y) >= 1) {
     drawPreview = {
@@ -1048,7 +1121,7 @@ export default function WhiteboardCanvas({
       y: drawDraft.y,
       x2: drawDraft.x2,
       y2: drawDraft.y2,
-      ...PAINT,
+      ...placedPaint(),
     };
   }
   const drawHint = drawTool === "circle"
@@ -1120,10 +1193,10 @@ export default function WhiteboardCanvas({
             {polygonScreens.length >= 3 && (
               <polygon
                 points={polygonScreens.map((point) => `${point.sx},${point.sy}`).join(" ")}
-                fill="#c5d4b4"
-                fillOpacity={0.85}
-                stroke="#344b2d"
-                strokeWidth={2}
+                fill={placeStyle.fillColor}
+                fillOpacity={placeStyle.fillOpacity}
+                stroke={placeStyle.strokeColor}
+                strokeWidth={placeStyle.strokeWidth}
               />
             )}
             {polygonScreens.length === 2 && (
@@ -1132,8 +1205,8 @@ export default function WhiteboardCanvas({
                 y1={polygonScreens[0].sy}
                 x2={polygonScreens[1].sx}
                 y2={polygonScreens[1].sy}
-                stroke="#344b2d"
-                strokeWidth={2}
+                stroke={placeStyle.strokeColor}
+                strokeWidth={placeStyle.strokeWidth}
               />
             )}
             {polygonCursor && polygonScreens.length > 0 && (
@@ -1142,8 +1215,8 @@ export default function WhiteboardCanvas({
                 y1={polygonScreens[polygonScreens.length - 1].sy}
                 x2={polygonCursor.sx}
                 y2={polygonCursor.sy}
-                stroke="#344b2d"
-                strokeWidth={1.5}
+                stroke={placeStyle.strokeColor}
+                strokeWidth={Math.max(placeStyle.strokeWidth, 1.5)}
                 strokeDasharray="4 3"
               />
             )}
@@ -1229,11 +1302,35 @@ export default function WhiteboardCanvas({
       <div className="coord-extent">{formatWorld(extent.x, extent.y)}</div>
 
       <div className="add-bar" role="toolbar" aria-label="Add objects">
-        <button type="button" aria-pressed={drawTool === "circle"} onClick={() => chooseTool("circle")}>Circle</button>
-        <button type="button" aria-pressed={drawTool === "rect"} onClick={() => chooseTool("rect")}>Rectangle</button>
-        <button type="button" aria-pressed={drawTool === "polygon"} onClick={() => chooseTool("polygon")}>Polygon</button>
-        <button type="button" aria-pressed={drawTool === "arrow"} onClick={() => chooseTool("arrow")}>Arrow</button>
-        <button type="button" aria-pressed={drawTool === "textbox"} onClick={() => chooseTool("textbox")}>Textbox</button>
+        {([
+          ["circle", "Circle"],
+          ["rect", "Rectangle"],
+          ["polygon", "Polygon"],
+          ["arrow", "Arrow"],
+          ["textbox", "Textbox"],
+        ] as const).map(([tool, label]) => (
+          <div key={tool}>
+            <button type="button" aria-pressed={drawTool === tool} onClick={() => chooseTool(tool)}>{label}</button>
+            {drawTool === tool && (
+              <form
+                className="style-menu"
+                aria-label="Style for new objects"
+                onSubmit={(event) => event.preventDefault()}
+              >
+                <label><span className="style-tip" data-tip="Stroke color"><OutlineIcon /></span>{styleColor("strokeColor", "Stroke color")}</label>
+                <label><span className="style-tip" data-tip="Fill color"><FillIcon /></span>{styleColor("fillColor", "Fill color")}</label>
+                <label><span className="style-tip" data-tip="Stroke width"><WidthIcon /></span>{styleNumber("strokeWidth", "Stroke width", 0)}</label>
+                <label><span className="style-tip" data-tip="Opacity"><OpacityIcon /></span>{styleNumber("fillOpacity", "Opacity", 0, 1)}</label>
+                {tool === "textbox" && (
+                  <>
+                    <label><span className="style-tip" data-tip="Text color"><TextIcon /></span>{styleColor("textColor", "Text color")}</label>
+                    <label><span className="style-tip" data-tip="Font size"><FontIcon /></span>{styleNumber("fontSize", "Font size", 1)}</label>
+                  </>
+                )}
+              </form>
+            )}
+          </div>
+        ))}
         <span className="hud-sep" aria-hidden="true" />
         <button type="button" onClick={() => { confirmClearRef.current = true; setConfirmClear(true); }}>Clear</button>
       </div>
@@ -1337,5 +1434,63 @@ export default function WhiteboardCanvas({
         onOrigin={() => setCamera({ panX: 0, panY: 0, zoom: 1 })}
       />
     </section>
+  );
+}
+
+function StyleGlyph({ children }: { children: ReactNode }) {
+  return (
+    <svg className="style-glyph" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      {children}
+    </svg>
+  );
+}
+
+function OutlineIcon() {
+  return (
+    <StyleGlyph>
+      <rect x="2" y="2" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    </StyleGlyph>
+  );
+}
+
+function FillIcon() {
+  return (
+    <StyleGlyph>
+      <rect x="2" y="2" width="10" height="10" rx="1.5" fill="currentColor" />
+    </StyleGlyph>
+  );
+}
+
+function WidthIcon() {
+  return (
+    <StyleGlyph>
+      <path d="M2 4.5h10M2 7h10M2 9.5h10" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </StyleGlyph>
+  );
+}
+
+function OpacityIcon() {
+  return (
+    <StyleGlyph>
+      <rect x="2" y="2" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="2.6" y="2.6" width="4.4" height="8.8" fill="currentColor" />
+    </StyleGlyph>
+  );
+}
+
+function TextIcon() {
+  return (
+    <StyleGlyph>
+      <path d="M3 11L7 3l4 8M4.4 8.2h5.2" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </StyleGlyph>
+  );
+}
+
+function FontIcon() {
+  return (
+    <StyleGlyph>
+      <path d="M3 11l2.4-8h.2L8 11M3.8 8.2h3.4" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.2 6.2v4.6M9.2 6.2l2.2 1.4" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </StyleGlyph>
   );
 }
