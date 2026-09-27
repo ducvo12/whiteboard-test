@@ -7,6 +7,7 @@ const ShapeBaseSchema = z.object({
     fillColor: z.string().min(1),
     fillOpacity: z.number().min(0).max(1).optional(),
     strokeWidth: z.number().nonnegative(),
+    rotation: z.number().describe("Degrees counterclockwise around the object center. 0 is unrotated. Y increases upward, so 90 turns the object's right side toward the top of the board."),
 });
 
 export const CircleSchema = ShapeBaseSchema.extend({
@@ -74,15 +75,6 @@ export type NoArgumentsSchemaType = z.infer<typeof NoArgumentsSchema>;
 
 
 // update schemas
-const BaseUpdateSchema = z.object({
-    x: z.number().optional(),
-    y: z.number().optional(),
-    strokeColor: z.string().min(1).optional(),
-    fillColor: z.string().min(1).optional(),
-    fillOpacity: z.number().min(0).max(1).optional(),
-    strokeWidth: z.number().nonnegative().optional(),
-});
-
 const RectUpdateSchema = RectSchema
     .omit({ object: true })
     .partial()

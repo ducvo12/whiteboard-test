@@ -7,6 +7,9 @@ export async function GET() {
 
 export async function PUT(request: Request) {
     const newItem = await request.json();
+    if (newItem && typeof newItem === "object" && !("rotation" in newItem)) {
+        newItem.rotation = 0;
+    }
     const parsed = BoardObjectSchema.safeParse(newItem);
 
     if (!parsed.success) {

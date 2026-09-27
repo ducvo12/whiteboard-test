@@ -387,6 +387,11 @@ textarea:focus-visible {
     stroke-dasharray: 4 3;
 }
 
+.rotate-stem {
+    stroke: var(--olive);
+    stroke-width: 1;
+}
+
 .scale-handle,
 .endpoint-handle {
     fill: var(--paper-raised);

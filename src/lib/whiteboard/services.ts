@@ -51,10 +51,12 @@ export function updateObject(input: UpdateObjectSchemaType) {
 
     if (index === -1) return { success: false, message: `Object with id ${input.id} not found` };
 
+    const current = objects[index];
     const updatedObject = {
-        ...objects[index],
-        ...input.patch
-    }
+        ...current,
+        ...input.patch,
+        rotation: input.patch.rotation ?? current.rotation ?? 0,
+    };
 
     const parsed = StoredObjectSchema.safeParse(updatedObject)
 

@@ -1,3 +1,4 @@
+import { objectBounds } from "@/lib/whiteboard/geometry";
 import { StoredObjectSchemaType } from "@/lib/whiteboard/schemas";
 import ArrowShape from "./arrow";
 import CircleShape from "./circle";
@@ -15,16 +16,29 @@ export default function BoardShape({
   toScreen: ToScreen;
   zoom: number;
 }) {
+  let shape;
   switch (obj.object) {
     case "circle":
-      return <CircleShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      shape = <CircleShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      break;
     case "rect":
-      return <RectShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      shape = <RectShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      break;
     case "polygon":
-      return <PolygonShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      shape = <PolygonShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      break;
     case "arrow":
-      return <ArrowShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      shape = <ArrowShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      break;
     case "textbox":
-      return <TextboxShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      shape = <TextboxShape obj={obj} toScreen={toScreen} zoom={zoom} />;
+      break;
   }
+  const bounds = objectBounds(obj);
+  const center = toScreen((bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2);
+  return (
+    <g transform={`rotate(${-(obj.rotation ?? 0)} ${center.sx} ${center.sy})`}>
+      {shape}
+    </g>
+  );
 }

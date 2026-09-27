@@ -28,6 +28,7 @@ const PAINT = {
   strokeColor: "#344b2d",
   fillColor: "#c5d4b4",
   strokeWidth: 2,
+  rotation: 0,
 };
 
 type Gesture =
@@ -40,7 +41,7 @@ type Gesture =
       panY: number;
     }
   | {
-      kind: "move" | "scale";
+      kind: "move" | "scale" | "rotate";
       pointerId: number;
       id: string;
       startWorldX: number;
@@ -96,14 +97,58 @@ function panelInsets(chatOpen: boolean, viewH: number) {
   return { right: 352, bottom: 0 };
 }
 
+function boundsCenter(obj: StoredObjectSchemaType) {
+  const bounds = objectBounds(obj);
+  return {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  };
+}
+
+function snapRotation(degrees: number) {
+  const norm = ((degrees % 360) + 360) % 360;
+  for (let turn = 0; turn < 8; turn += 1) {
+    const angle = turn * 45;
+    const dist = Math.min(Math.abs(norm - angle), 360 - Math.abs(norm - angle));
+    if (dist <= 5) return angle % 360;
+  }
+  return Math.round(norm) % 360;
+}
+
+function localWorld(obj: StoredObjectSchemaType, worldX: number, worldY: number) {
+  const center = boundsCenter(obj);
+  const turn = (obj.rotation ?? 0) * Math.PI / 180;
+  const cos = Math.cos(turn);
+  const sin = Math.sin(turn);
+  const dx = worldX - center.x;
+  const dy = worldY - center.y;
+  return {
+    x: center.x + dx * cos + dy * sin,
+    y: center.y - dx * sin + dy * cos,
+  };
+}
+
+function rotatedScreen(sx: number, sy: number, cx: number, cy: number, rotation: number) {
+  const turn = -rotation * Math.PI / 180;
+  const cos = Math.cos(turn);
+  const sin = Math.sin(turn);
+  const dx = sx - cx;
+  const dy = sy - cy;
+  return {
+    sx: cx + dx * cos - dy * sin,
+    sy: cy + dx * sin + dy * cos,
+  };
+}
+
 function hitObject(worldX: number, worldY: number, objects: StoredObjectSchemaType[]) {
   for (let i = objects.length - 1; i >= 0; i--) {
+    const local = localWorld(objects[i], worldX, worldY);
     const bounds = objectBounds(objects[i]);
     if (
-      worldX >= bounds.minX &&
-      worldX <= bounds.maxX &&
-      worldY >= bounds.minY &&
-      worldY <= bounds.maxY
+      local.x >= bounds.minX &&
+      local.x <= bounds.maxX &&
+      local.y >= bounds.minY &&
+      local.y <= bounds.maxY
     ) {
       return objects[i];
     }
@@ -212,10 +257,11 @@ function withPointCount(points: { x: number; y: number }[], count: number) {
 }
 
 function geometryPatch(obj: StoredObjectSchemaType) {
-  if (obj.object === "circle") return { x: obj.x, y: obj.y, r: obj.r };
-  if (obj.object === "polygon") return { x: obj.x, y: obj.y, points: obj.points };
-  if (obj.object === "arrow") return { x: obj.x, y: obj.y, x2: obj.x2, y2: obj.y2 };
-  return { x: obj.x, y: obj.y, w: obj.w, h: obj.h };
+  const rotation = obj.rotation ?? 0;
+  if (obj.object === "circle") return { x: obj.x, y: obj.y, r: obj.r, rotation };
+  if (obj.object === "polygon") return { x: obj.x, y: obj.y, points: obj.points, rotation };
+  if (obj.object === "arrow") return { x: obj.x, y: obj.y, x2: obj.x2, y2: obj.y2, rotation };
+  return { x: obj.x, y: obj.y, w: obj.w, h: obj.h, rotation };
 }
 
 export default function WhiteboardCanvas({
@@ -462,7 +508,7 @@ export default function WhiteboardCanvas({
     numberDraftsRef.current = { ...numberDraftsRef.current, [field]: raw };
     setNumberDrafts(numberDraftsRef.current);
     const value = Number(raw);
-    if (raw.trim() === "" || !Number.isFinite(value) || value < min) return;
+    if (raw.trim() === "" || !Number.isFinite(value) || value < min || field === "rotation") return;
     editObject({ [field]: value });
   }
 
@@ -471,7 +517,7 @@ export default function WhiteboardCanvas({
     if (raw.trim() === "" || !Number.isFinite(value)) {
       if (min <= 0) editObject({ [field]: 0 });
     } else if (value >= min) {
-      editObject({ [field]: value });
+      editObject({ [field]: field === "rotation" ? snapRotation(value) : value });
     }
     const next = { ...numberDraftsRef.current };
     delete next[field];
@@ -705,11 +751,30 @@ export default function WhiteboardCanvas({
 
     if (selected) {
       const bounds = objectBounds(selected);
-      const handle = worldToBoard(bounds.maxX, bounds.minY);
+      const center = boundsCenter(selected);
+      const centerBoard = worldToBoard(center.x, center.y);
+      const rotation = selected.rotation ?? 0;
+      const corner = worldToBoard(bounds.maxX, bounds.minY);
+      const handle = rotatedScreen(corner.sx, corner.sy, centerBoard.sx, centerBoard.sy, rotation);
       if (Math.hypot(sx - handle.sx, sy - handle.sy) <= HANDLE_PX) {
         e.currentTarget.setPointerCapture(e.pointerId);
         gestureRef.current = {
           kind: "scale",
+          pointerId: e.pointerId,
+          id: selected.id,
+          startWorldX: world.x,
+          startWorldY: world.y,
+          orig: selected,
+        };
+        setEditingId(null);
+        return;
+      }
+      const top = worldToBoard(center.x, bounds.maxY);
+      const rotateAt = rotatedScreen(top.sx, top.sy - 28, centerBoard.sx, centerBoard.sy, rotation);
+      if (Math.hypot(sx - rotateAt.sx, sy - rotateAt.sy) <= HANDLE_PX) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        gestureRef.current = {
+          kind: "rotate",
           pointerId: e.pointerId,
           id: selected.id,
           startWorldX: world.x,
@@ -725,8 +790,23 @@ export default function WhiteboardCanvas({
       ? selected
       : hitObject(world.x, world.y, objectsRef.current);
     if (arrow?.object === "arrow") {
-      const tail = worldToBoard(arrow.x, arrow.y);
-      const head = worldToBoard(arrow.x2, arrow.y2);
+      const center = boundsCenter(arrow);
+      const centerBoard = worldToBoard(center.x, center.y);
+      const rotation = arrow.rotation ?? 0;
+      const tail = rotatedScreen(
+        worldToBoard(arrow.x, arrow.y).sx,
+        worldToBoard(arrow.x, arrow.y).sy,
+        centerBoard.sx,
+        centerBoard.sy,
+        rotation,
+      );
+      const head = rotatedScreen(
+        worldToBoard(arrow.x2, arrow.y2).sx,
+        worldToBoard(arrow.x2, arrow.y2).sy,
+        centerBoard.sx,
+        centerBoard.sy,
+        rotation,
+      );
       const tailDist = Math.hypot(sx - tail.sx, sy - tail.sy);
       const headDist = Math.hypot(sx - head.sx, sy - head.sy);
       if (Math.min(tailDist, headDist) <= END_HIT_PX) {
@@ -748,10 +828,14 @@ export default function WhiteboardCanvas({
       ? selected
       : hitObject(world.x, world.y, objectsRef.current);
     if (polygon?.object === "polygon") {
+      const center = boundsCenter(polygon);
+      const centerBoard = worldToBoard(center.x, center.y);
+      const rotation = polygon.rotation ?? 0;
       let nearest = -1;
       let nearestDist = END_HIT_PX;
       polygon.points.forEach((point, index) => {
-        const screen = worldToBoard(point.x, point.y);
+        const raw = worldToBoard(point.x, point.y);
+        const screen = rotatedScreen(raw.sx, raw.sy, centerBoard.sx, centerBoard.sy, rotation);
         const dist = Math.hypot(sx - screen.sx, sy - screen.sy);
         if (dist <= nearestDist) {
           nearest = index;
@@ -849,21 +933,28 @@ export default function WhiteboardCanvas({
     if (active.kind === "press") return;
 
     const world = pointerWorld(e);
+    if (active.kind === "rotate") {
+      const center = boundsCenter(active.orig);
+      const degrees = Math.atan2(world.y - center.y, world.x - center.x) * 180 / Math.PI - 90;
+      replaceObject({ ...active.orig, rotation: snapRotation(degrees) });
+      return;
+    }
+    const local = localWorld(active.orig, world.x, world.y);
     if (active.kind === "aim" && active.orig.object === "arrow") {
       replaceObject(active.end === "tail"
-        ? { ...active.orig, x: world.x, y: world.y }
-        : { ...active.orig, x2: world.x, y2: world.y });
+        ? { ...active.orig, x: local.x, y: local.y }
+        : { ...active.orig, x2: local.x, y2: local.y });
       return;
     }
     if (active.kind === "vertex" && active.orig.object === "polygon") {
       const points = active.orig.points.map((point, index) =>
-        index === active.index ? { x: world.x, y: world.y } : point);
+        index === active.index ? { x: local.x, y: local.y } : point);
       replaceObject({ ...active.orig, x: points[0].x, y: points[0].y, points });
       return;
     }
     const next = active.kind === "move"
       ? movedObject(active.orig, world.x - active.startWorldX, world.y - active.startWorldY)
-      : scaledObject(active.orig, world.x, world.y);
+      : scaledObject(active.orig, local.x, local.y);
     replaceObject(next);
   }
 
@@ -922,8 +1013,13 @@ export default function WhiteboardCanvas({
   const extent = screenToWorld(width, 0, camera, height);
   const gridPx = GRID * zoom;
   const selection = selected ? objectBounds(selected) : null;
+  const selectionCenter = selected ? boundsCenter(selected) : null;
+  const selectionRotation = selected?.rotation ?? 0;
   const selectionScreen = selection ? toScreen(selection.minX, selection.maxY) : null;
   const handleScreen = selection ? toScreen(selection.maxX, selection.minY) : null;
+  const rotateScreen = selectionCenter && selection
+    ? toScreen(selectionCenter.x, selection.maxY)
+    : null;
   const tailGrip = selected?.object === "arrow" ? toScreen(selected.x, selected.y) : null;
   const headGrip = selected?.object === "arrow" ? toScreen(selected.x2, selected.y2) : null;
   const vertexGrips = selected?.object === "polygon"
@@ -1055,8 +1151,12 @@ export default function WhiteboardCanvas({
               <circle key={index} cx={point.sx} cy={point.sy} r={3.5} fill="#fbfbf8" stroke="#344b2d" strokeWidth={1.5} />
             ))}
           </g>
-          {selection && selectionScreen && (
-            <g className="selection" pointerEvents="none">
+          {selection && selectionScreen && selectionCenter && (
+            <g
+              className="selection"
+              pointerEvents="none"
+              transform={`rotate(${-selectionRotation} ${toScreen(selectionCenter.x, selectionCenter.y).sx} ${toScreen(selectionCenter.x, selectionCenter.y).sy})`}
+            >
               <rect
                 x={selectionScreen.sx}
                 y={selectionScreen.sy}
@@ -1072,6 +1172,12 @@ export default function WhiteboardCanvas({
                   width={10}
                   height={10}
                 />
+              )}
+              {rotateScreen && (
+                <>
+                  <line className="rotate-stem" x1={rotateScreen.sx} y1={rotateScreen.sy} x2={rotateScreen.sx} y2={rotateScreen.sy - 28} />
+                  <circle className="endpoint-handle" pointerEvents="all" cx={rotateScreen.sx} cy={rotateScreen.sy - 28} r={4} />
+                </>
               )}
               {vertexGrips.map((grip, index) => (
                 <circle key={index} className="endpoint-handle" pointerEvents="all" cx={grip.sx} cy={grip.sy} r={3.5} />
@@ -1098,6 +1204,8 @@ export default function WhiteboardCanvas({
             fontSize: editing.fontSize * zoom,
             color: editing.textColor,
             background: editing.fillColor,
+            transform: `rotate(${-(editing.rotation ?? 0)}deg)`,
+            transformOrigin: "center center",
           }}
           value={draft}
           autoFocus
@@ -1156,6 +1264,7 @@ export default function WhiteboardCanvas({
           <div className="inspector-title">{selected.object}</div>
           <label>X{numberInput("x", selected.x)}</label>
           <label>Y{numberInput("y", selected.y)}</label>
+          <label>Rotation{numberInput("rotation", selected.rotation ?? 0)}</label>
           {selected.object === "polygon" && (
             <div className="point-stepper">
               <span>Points</span>
