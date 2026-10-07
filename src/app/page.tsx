@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import Sidebar from "@/components/sidebar/sidebar";
-import WhiteboardCanvas from "@/components/whiteboard-canvas";
+
+const TldrawBoard = dynamic(() => import("@/components/tldraw-board"), {
+  ssr: false,
+  loading: () => <p className="board-loading" role="status">Loading whiteboard…</p>,
+});
 
 export default function Home() {
   const [chatOpen, setChatOpen] = useState(true);
@@ -12,7 +17,9 @@ export default function Home() {
     <main
       className={`workspace${chatOpen ? " is-chat-open" : ""}${agentWorking ? " is-working" : ""}`}
     >
-      <WhiteboardCanvas agentWorking={agentWorking} chatOpen={chatOpen} />
+      <section className="tldraw-board" aria-label="Whiteboard">
+        <TldrawBoard />
+      </section>
       <Sidebar
         open={chatOpen}
         onOpenChange={setChatOpen}

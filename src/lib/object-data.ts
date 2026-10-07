@@ -1,6 +1,11 @@
 import { StoredObjectSchemaType } from "./whiteboard/schemas";
 
-export const objects: StoredObjectSchemaType[] = []
+// Next.js may bundle each route separately. Share the development board across
+// those bundles (and hot reloads) within the same Node.js process.
+const boardGlobal = globalThis as typeof globalThis & {
+    whiteboardObjects?: StoredObjectSchemaType[];
+};
+export const objects: StoredObjectSchemaType[] = boardGlobal.whiteboardObjects ??= [];
 
 /*
 export const objects: StoredObjectSchemaValue[] = [

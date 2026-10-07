@@ -2,7 +2,7 @@ import { BoardObjectSchema, DeleteObjectSchema, UpdateObjectSchema } from "@/lib
 import { createShape, createTextbox, deleteObject, listObjects, updateObject } from "@/lib/whiteboard/services";
 
 export async function GET() {
-    return Response.json([...listObjects({})]);
+    return Response.json([...listObjects({})], { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function PUT(request: Request) {
@@ -16,9 +16,14 @@ export async function PUT(request: Request) {
         return Response.json({ error: parsed.error }, { status: 400 })
     }
 
+    // Browser-generated IDs make a retried create safe. Agent callers still get UUIDs.
+    const id = typeof newItem.id === "string" && newItem.id.length > 0 ? newItem.id : undefined;
+    const existing = id && listObjects({}).find((item) => item.id === id);
+    if (existing) return Response.json(existing);
+
     const created = parsed.data.object === "textbox"
-        ? createTextbox(parsed.data)
-        : createShape(parsed.data);
+        ? createTextbox(parsed.data, id)
+        : createShape(parsed.data, id);
 
     return Response.json(created.obj);
 }
@@ -29,6 +34,15 @@ export async function PATCH(request: Request) {
     const parsed = UpdateObjectSchema.safeParse(updateObjectRequest);
 
     if (parsed.success) {
+        const current = listObjects({}).find((item) => item.id === parsed.data.id);
+        if (!current && updateObjectRequest.expected) return Response.json({ error: "This object was deleted elsewhere." }, { status: 409 });
+        if (updateObjectRequest.expected && current) {
+            const values = current as unknown as Record<string, unknown>;
+            const conflict = Object.entries(updateObjectRequest.expected).some(([key, value]) =>
+                JSON.stringify(values[key] ?? null) !== JSON.stringify(value ?? null) &&
+                JSON.stringify(values[key] ?? null) !== JSON.stringify((parsed.data.patch as Record<string, unknown>)[key] ?? null));
+            if (conflict) return Response.json({ error: "This object was changed elsewhere. The server version was kept." }, { status: 409 });
+        }
         const response = updateObject(parsed.data);
 
         if (response.success) {
@@ -44,9 +58,14 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
     const deleteObjectRequest = await request.json();
 
-    const parsed = DeleteObjectSchema.safeParse(deleteObjectRequest);
+    const parsed = DeleteObjectSchema.safeParse({ id: deleteObjectRequest?.id });
 
     if (parsed.success) {
+        const current = listObjects({}).find((item) => item.id === parsed.data.id);
+        if (!current && deleteObjectRequest.expected) return Response.json({ success: true });
+        if (current && deleteObjectRequest.expected && JSON.stringify(current) !== JSON.stringify(deleteObjectRequest.expected)) {
+            return Response.json({ error: "This object changed before deletion. The server version was kept." }, { status: 409 });
+        }
         const response = deleteObject(parsed.data);
 
         if (response.success) {

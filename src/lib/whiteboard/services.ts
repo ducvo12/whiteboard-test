@@ -5,9 +5,9 @@ export function listObjects(input: NoArgumentsSchemaType) {
     return objects;
 }
 
-export function createShape(input: CreateShapeSchemaType) {
+export function createShape(input: CreateShapeSchemaType, id = crypto.randomUUID()) {
     const obj: StoredObjectSchemaType = {
-        id: crypto.randomUUID(),
+        id,
         ...input
     }
     objects.push(obj);
@@ -18,9 +18,9 @@ export function createShape(input: CreateShapeSchemaType) {
     };
 }
 
-export function createTextbox(input: TextboxSchemaType) {
+export function createTextbox(input: TextboxSchemaType, id = crypto.randomUUID()) {
     const obj: StoredObjectSchemaType = {
-        id: crypto.randomUUID(),
+        id,
         ...input
     }
     objects.push(obj);
