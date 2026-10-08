@@ -98,7 +98,10 @@ function nativeShapeToObject(editor: Editor, shape: TLShape): BoardObjectSchemaT
 
 export function changedFields(before: BoardObjectSchemaType, after: BoardObjectSchemaType) {
   const old = before as unknown as Record<string, unknown>;
-  return Object.fromEntries(Object.entries(after).filter(([key, value]) => key !== "object" && JSON.stringify(value) !== JSON.stringify(old[key])));
+  const next = after as unknown as Record<string, unknown>;
+  return Object.fromEntries([...new Set([...Object.keys(old), ...Object.keys(next)])]
+    .filter(key => key !== "object" && JSON.stringify(next[key]) !== JSON.stringify(old[key]))
+    .map(key => [key, next[key]]));
 }
 
 export function polygonObject(props: import('./tldraw-board-model').ExactBoardProps): BoardObjectSchemaType {

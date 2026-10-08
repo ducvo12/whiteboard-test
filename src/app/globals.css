@@ -111,7 +111,7 @@ textarea:focus-visible {
 .board-tools button[aria-pressed="true"] { background: var(--olive-soft); }
 .board-add-menu { position: absolute; top: 100%; left: 0; display: grid; padding: 4px; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; }
 .board-add-menu button:hover, .board-property-fields button:hover { background: var(--olive-soft); }
-.board-properties { top: 100px; left: 12px; width: 220px; max-height: calc(100% - 140px); overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-raised); box-shadow: var(--shadow); }
+.board-properties { z-index: 20; top: 100px; left: 12px; width: 220px; max-height: calc(100% - 140px); overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-raised); box-shadow: var(--shadow); }
 .board-properties summary { padding: 10px; cursor: pointer; text-transform: capitalize; font-weight: 600; }
 .board-property-fields { padding: 0 10px 10px; display: grid; gap: 6px; }
 .board-property-fields label { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; font-size: 11px; }

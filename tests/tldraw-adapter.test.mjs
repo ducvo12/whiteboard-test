@@ -4,6 +4,12 @@ import { Mat, GeoShapeUtil, ArrowShapeUtil, createTLStore } from 'tldraw';
 import { objectToShape, shapeToObject, changedFields, preserveNativeStyles, serverObjectId } from '../src/lib/whiteboard/tldraw-adapter.ts';
 
 const paint = { strokeColor: '#344b2d', fillColor: '#c5d4b4', strokeWidth: 2, rotation: 0 };
+test('clearing advanced label fields removes them from the compatibility projection', () => {
+  const plain = { ...paint, object: 'rect', x: 0, y: 0, w: 100, h: 80, label: '' };
+  const labeled = { ...plain, label: 'Before', labelX: 1.2, labelY: -.2, labelFontSize: 20, labelBackground: '#ffffff' };
+  const merged = JSON.parse(JSON.stringify({ ...labeled, ...changedFields(labeled, plain) }));
+  assert.deepEqual(merged, plain);
+});
 function fixture(object) {
   const partial = objectToShape(object);
   const defaults = partial.type === 'geo' ? GeoShapeUtil.prototype.getDefaultProps() : partial.type === 'arrow' ? ArrowShapeUtil.prototype.getDefaultProps() : {};
