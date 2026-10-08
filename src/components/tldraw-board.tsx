@@ -6,9 +6,10 @@ import type { Editor } from "tldraw";
 import { connectBoard } from "@/lib/whiteboard/tldraw-sync";
 import { ExactBoardShapeUtil } from "./shapes/exact-board-shape";
 import { BoardControls, BoardStylePanel } from "./board-controls";
+import { BoardToolbar } from "./board-toolbar";
 
 const shapeUtils = [ExactBoardShapeUtil];
-const components = { InFrontOfTheCanvas: BoardControls, StylePanel: BoardStylePanel };
+const components = { InFrontOfTheCanvas: BoardControls, StylePanel: BoardStylePanel, Toolbar: BoardToolbar };
 const overrides = { translations: { en: { "tool.board-object": "Board shape" } } };
 
 export default function TldrawBoard() {
