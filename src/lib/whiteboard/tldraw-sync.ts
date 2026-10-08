@@ -1,169 +1,144 @@
-import { readAttachedLabel } from "./attached-label";
-import { toRichText, type Editor, type TLShapeId } from "tldraw";
-import { BoardObjectSchema, StoredObjectSchema, type BoardObjectSchemaType, type StoredObjectSchemaType } from "./schemas";
-import { serverObjectId, changedFields, preserveNativeStyles, objectToShape, shapeId, shapeToObject } from "./tldraw-adapter";
+import { getSnapshot, loadSnapshot, type Editor, type TLShapeId } from 'tldraw';
+import { StoredObjectSchema, type BoardObjectSchemaType, type StoredObjectSchemaType } from './schemas';
+import { changedFields, serverObjectId, shapeId, shapeToObject } from './tldraw-adapter';
+import { applyAgentObject } from './apply-board-command';
+import type { SavedBoard } from './document-store';
 
-type Baseline = { object: StoredObjectSchemaType; projection: BoardObjectSchemaType };
+export const UNSAVED_BOARD_KEY = 'whiteboard-unsaved-document';
 
-/** A single serialized save/read loop; remote updates never enter local history. */
-export function connectBoard(editor: Editor, report: (message: string) => void) {
-  const known = new Map<TLShapeId, Baseline>();
-  const dirty = new Map<TLShapeId, number>();
-  const conflicts = new Set<TLShapeId>();
+/** The complete tldraw document is saved atomically; objects are only an agent projection. */
+export function connectBoard(editor:Editor, report:(message:string)=>void) {
   const controller = new AbortController();
-  let stopped = false;
-  let initialized = false;
-  let timer: ReturnType<typeof setTimeout>;
-  let generation = 0;
-  let lastError = "";
-  editor.updateInstanceState({ isReadonly: true });
-  report("Loading board…");
+  let stopped=false, initialized=false, blocked=false, pending=false;
+  let revision=-1, sequence=0, generation=0, appliedSequence=0;
+  let timer:ReturnType<typeof setTimeout>;
+  let base = new Map<string,StoredObjectSchemaType>();
+  let nativeBase = new Map<TLShapeId,BoardObjectSchemaType>();
+  editor.updateInstanceState({isReadonly:true});
+  report('Loading saved board…');
+  const unsubscribe = editor.store.listen(()=>{
+    if (!initialized || blocked) return;
+    generation++;pending=true;report('Saving board…');
+  },{source:'user',scope:'document'});
+  const beforeUnload = (event:BeforeUnloadEvent)=>{if(pending){event.preventDefault();event.returnValue='';}};
+  window.addEventListener('beforeunload',beforeUnload);
 
-  const unsubscribe = editor.store.listen(({ changes }) => {
-    for (const record of [...Object.values(changes.added), ...Object.values(changes.updated).map(([, next]) => next), ...Object.values(changes.removed)]) {
-      if (record.typeName === "shape") dirty.set(record.id, ++generation);
+  function nativeProjection() {
+    const result = new Map<TLShapeId,BoardObjectSchemaType>();
+    // Includes descendants, bindings, and all pages in the saved document.
+    for (const shape of editor.store.allRecords()) if (shape.typeName === 'shape') {
+      const object = shapeToObject(editor,shape);
+      if (object && StoredObjectSchema.safeParse({...object,id:serverObjectId(shape)}).success) result.set(shape.id,object);
     }
-    // Parent transforms and bound-arrow positions can change indirectly.
-    if (Object.keys(changes.added).length || Object.keys(changes.updated).length || Object.keys(changes.removed).length) {
-      for (const shape of editor.getCurrentPageShapes()) dirty.set(shape.id, ++generation);
-    }
-    // Binding edits can change an arrow's visible endpoints without changing its props.
-    if ([...Object.values(changes.added), ...Object.values(changes.updated).map(([, next]) => next), ...Object.values(changes.removed)].some((r) => r.typeName === "binding")) {
-      for (const shape of editor.getCurrentPageShapes()) if (shape.type === "arrow") dirty.set(shape.id, ++generation);
-    }
-    if (dirty.size) report("Saving board changes…");
-  }, { source: "user", scope: "document" });
-  const beforeUnload = (event: BeforeUnloadEvent) => {
-    if (dirty.size) { event.preventDefault(); event.returnValue = ""; }
-  };
-  window.addEventListener("beforeunload", beforeUnload);
-
-  function remember(id: TLShapeId, baseline: Baseline) {
-    const shape = editor.getShape(id);
-    if (shape) editor.store.mergeRemoteChanges(() => editor.updateShape({ id, type: shape.type,
-      meta: { ...shape.meta, boardId: baseline.object.id, boardKind: baseline.object.object,
-        boardSnapshot: JSON.stringify(baseline) } }));
+    return result;
   }
-
-  function restoreInput(snapshot: unknown, projection: BoardObjectSchemaType): BoardObjectSchemaType {
-    if (typeof snapshot !== "string") return projection;
-    try {
-      const saved = JSON.parse(snapshot) as { object?: unknown; projection?: unknown };
-      const object = BoardObjectSchema.safeParse(saved.object);
-      const previous = BoardObjectSchema.safeParse(saved.projection);
-      if (object.success && previous.success && object.data.object === projection.object) {
-        return BoardObjectSchema.parse({ ...object.data, ...changedFields(previous.data, projection) });
-      }
-    } catch { /* Invalid or obsolete metadata falls back to the current shape. */ }
-    return projection;
+  function compatibilityProjection(native:Map<TLShapeId,BoardObjectSchemaType>) {
+    return [...native].map(([id,object])=>{
+      const shape=editor.getShape(id)!, serverId=serverObjectId(shape);
+      const old=base.get(serverId), before=nativeBase.get(id);
+      return old && before && before.object === object.object ? {...old,...changedFields(before,object),id:serverId} : {...object,id:serverId};
+    });
   }
-
-  async function request(method: string, body?: unknown) {
-    const response = await fetch("/api/objects", { method, cache: "no-store", signal: controller.signal,
-      ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
-    if (!response.ok) {
-      const error = new Error(response.status === 409 ? "An object changed elsewhere. The server version was kept; please repeat that edit." : `Board ${method.toLowerCase()} failed (${response.status}). Unsaved edits will retry.`);
-      Object.assign(error, { conflict: response.status === 409 });
-      throw error;
-    }
-    return response.json();
+  async function request(method:'GET'|'PUT', body?:unknown) {
+    const response=await fetch('/api/board',{method,cache:'no-store',signal:controller.signal,
+      ...(body ? {headers:{'Content-Type':'application/json'},body:JSON.stringify(body)} : {})});
+    const data=await response.json();
+    if (!response.ok) throw Object.assign(new Error(data.error ?? 'Board storage is unavailable.'),{status:response.status});
+    return data;
   }
-
+  function protectLocalCopy(message:string) {
+    blocked=true;pending=true;editor.updateInstanceState({isReadonly:true});
+    let saved=false;
+    try { localStorage.setItem(UNSAVED_BOARD_KEY,JSON.stringify(getSnapshot(editor.store).document));saved=true; } catch { /* Large boards can exceed localStorage; downloading remains available. */ }
+    report(`${message} ${saved ? 'An unsaved recovery copy is available.' : 'Keep this tab open.'} Use Download board before reloading; Recover copy can restore it after reload.`);
+  }
+  function load(state:SavedBoard) {
+    editor.store.mergeRemoteChanges(()=>{
+      if (state.document) loadSnapshot(editor.store,{document:state.document});
+      editor.clearHistory();
+    });
+    base=new Map(state.projection.map(object=>[object.id,object]));
+    nativeBase=nativeProjection();revision=state.revision;
+    appliedSequence=state.commands.length ? state.commands[0].seq-1 : state.sequence;
+  }
   async function tick() {
     try {
-      // Don't replace shapes or persist intermediate geometry during gestures/text editing.
-      if (editor.inputs.getIsPointing() || editor.getEditingShapeId()) return;
-      for (const [id, version] of [...dirty]) {
-        const baseline = known.get(id);
-        const shape = editor.getShape(id);
+      if (blocked || editor.inputs.getIsPointing() || editor.getEditingShapeId()) return;
+      const state=await request('GET') as SavedBoard;
+      if (stopped || editor.inputs.getIsPointing() || editor.getEditingShapeId()) return;
+      if (!initialized) load(state);
+      else if (state.revision !== revision) {
+        if (pending) {protectLocalCopy('Another tab saved a different board.');return;}
+        load(state);
+      }
+      // Apply durable agent commands remotely, keeping them out of user undo history.
+      if (state.commands.some(command=>command.seq>appliedSequence)) {
+        const readonly=editor.getIsReadonly();
+        editor.updateInstanceState({isReadonly:false});
         try {
-          if (!shape) {
-            if (baseline) await request("DELETE", { id: baseline.object.id, expected: baseline.object });
-            known.delete(id);
-          } else {
-            const projection = shapeToObject(editor, shape);
-            if (!projection) continue;
-            if (!baseline) {
-              const serverId = serverObjectId(shape);
-              const input = restoreInput(shape.meta.boardSnapshot, projection);
-              const saved = StoredObjectSchema.parse(await request("PUT", { ...input, id: serverId }));
-              known.set(id, { object: saved, projection });
-              remember(id, { object: saved, projection });
-            } else {
-              if (projection.object !== baseline.projection.object) continue;
-              const patch = changedFields(baseline.projection, projection);
-              if (Object.keys(patch).length) {
-                const values = baseline.object as unknown as Record<string, unknown>;
-                const expected = Object.fromEntries(Object.keys(patch).map((key) => [key, values[key] ?? null]));
-                await request("PATCH", { id: baseline.object.id, patch, expected });
-                known.set(id, { object: { ...baseline.object, ...patch } as StoredObjectSchemaType, projection });
-                remember(id, known.get(id)!);
+          editor.store.mergeRemoteChanges(()=>editor.run(()=>{
+            for (const command of state.commands.filter(command=>command.seq>appliedSequence)) {
+              if (command.kind === 'clear') {
+                if (pending && initialized) throw new Error('The agent cleared the board while local edits were unsaved.');
+                editor.deleteShapes(editor.store.allRecords().filter(r=>r.typeName === 'shape').map(r=>r.id as TLShapeId));base.clear();
+              } else if (command.kind === 'delete') {
+                const id=shapeId(command.id), shape=editor.getShape(id), before=nativeBase.get(id);
+                if (shape && before) {
+                  const current=shapeToObject(editor,shape);
+                  if (current && Object.keys(changedFields(before,current)).length) throw new Error('An agent deletion overlaps unsaved local edits.');
+                }
+                editor.deleteShapes([id]);base.delete(command.id);
+              } else {
+                const id=shapeId(command.object.id), existing=editor.getShape(id), before=nativeBase.get(id);
+                const current=existing && shapeToObject(editor,existing);
+                const local=before && current ? changedFields(before,current) : {};
+                applyAgentObject(editor,command.object,base.get(command.object.id),before);
+                base.set(command.object.id,command.object);
+                const updated=editor.getShape(id), after=updated && shapeToObject(editor,updated);
+                if(after) {
+                  const baseline={...after} as unknown as Record<string,unknown>;
+                  for(const key of Object.keys(local)) {
+                    const value=(before as unknown as Record<string,unknown>)[key];
+                    if(value === undefined) delete baseline[key];else baseline[key]=value;
+                  }
+                  nativeBase.set(id,baseline as BoardObjectSchemaType);
+                }
               }
             }
-          }
-          if (dirty.get(id) === version) dirty.delete(id);
-        } catch (error) {
-          if (error instanceof Error && "conflict" in error && error.conflict) {
-            dirty.delete(id);
-            conflicts.add(id);
-            lastError = error.message;
-          } else throw error;
-        }
-      }
-      const data = await request("GET");
-      const objects = StoredObjectSchema.array().parse(data);
-      if (stopped) return;
-      if (editor.inputs.getIsPointing() || editor.getEditingShapeId()) return;
-      const remoteIds = new Set(objects.map((obj) => shapeId(obj.id)));
-      editor.store.mergeRemoteChanges(() => {
-        for (const [id] of known) {
-          if (!remoteIds.has(id) && !dirty.has(id)) { editor.deleteShapes([id]); known.delete(id); }
-        }
-        for (const obj of objects) {
-          const partial = objectToShape(obj);
-          const id = shapeId(obj.id);
-          if (!partial || dirty.has(id)) continue;
-          partial.parentId = editor.getCurrentPageId();
-          if (!conflicts.has(id) && JSON.stringify(known.get(id)?.object) === JSON.stringify(obj)) continue;
-          const existing = editor.getShape(id);
-          const previous = known.get(id)?.object;
-          if (existing?.type === partial.type && previous && partial.props) {
-            partial.props = preserveNativeStyles(previous, obj, partial.props);
-            if (readAttachedLabel(partial as { meta: typeof existing.meta }) && !readAttachedLabel(existing) &&
-              (existing.type === 'arrow' || existing.type === 'geo' && existing.meta.boardKind !== 'textbox')) {
-              if (partial.type === 'geo' || partial.type === 'arrow') partial.props = { ...partial.props, richText: toRichText('') };
-            }
-          }
-          if (existing && existing.type !== partial.type) {
-            const selected = editor.getSelectedShapeIds().includes(id);
-            editor.deleteShapes([id]);
-            editor.createShape(partial);
-            if (selected) editor.setSelectedShapes([...editor.getSelectedShapeIds(), id]);
-          } else if (existing) editor.updateShape(partial);
-          else editor.createShape(partial);
-          const shape = editor.getShape(id);
-          const projection = shape && shapeToObject(editor, shape);
-          if (projection) { known.set(id, { object: obj, projection }); remember(id, { object: obj, projection }); }
-          conflicts.delete(id);
-        }
-      });
+          },{ignoreShapeLock:true,history:'ignore'}));
+        } catch(error) {protectLocalCopy(error instanceof Error ? error.message : 'Agent edits conflict with local edits.');return;}
+        finally {editor.updateInstanceState({isReadonly:blocked || readonly});}
+        appliedSequence=state.sequence;sequence=state.sequence;generation++;pending=true;
+      } else sequence=state.sequence;
       if (!initialized) {
-        initialized = true;
-        editor.updateInstanceState({ isReadonly: false });
-        if (known.size) editor.zoomToFit();
-        else editor.centerOnPoint({ x: 0, y: 0 });
+        initialized=true;editor.updateInstanceState({isReadonly:false});
+        if(editor.getCurrentPageShapeIds().size) editor.zoomToFit();else editor.centerOnPoint({x:0,y:0});
+        if (!state.document) {pending=true;generation++;}
       }
-      const localOnly = editor.getCurrentPageShapes().filter((shape) => !shapeToObject(editor, shape)).length;
-      report([lastError,
-        localOnly ? `${localOnly} unsupported shape(s) or empty text: edits are local only. Use board shapes or the native rectangle, circle, straight-arrow, and text tools.` : "",
-        dirty.size ? "Some edits are not saved yet." : ""].filter(Boolean).join(" "));
-
-    } catch (error) {
-      if (!stopped) report(error instanceof Error ? error.message : "Board connection failed. Retrying…");
-    } finally {
-      if (!stopped) timer = setTimeout(() => void tick(), 800);
-    }
+      if (pending) {
+        const savedGeneration=generation;
+        const native=nativeProjection(), projection=compatibilityProjection(native);
+        const document=getSnapshot(editor.store).document;
+        try {
+          const result=await request('PUT',{expectedRevision:revision,acknowledged:sequence,document,projection});
+          if(stopped)return;
+          revision=result.revision;base=new Map(projection.map(object=>[object.id,object]));nativeBase=native;
+          pending=generation!==savedGeneration;
+        } catch(error) {
+          if(error && typeof error === 'object' && 'status' in error && error.status === 409) {
+            // A queued agent edit is applied on the next read. Revision conflicts protect the local copy.
+            const latest=await request('GET') as SavedBoard;
+            if(latest.revision!==revision) protectLocalCopy('Another tab saved while this board was saving.');
+            return;
+          }
+          throw error;
+        }
+      }
+      report(pending ? 'Saving board…' : '');
+    } catch(error) {
+      if(!stopped)report(`${error instanceof Error ? error.message : 'Board storage is unavailable.'} Your edits remain in this tab; saving will retry.`);
+    } finally {if(!stopped)timer=setTimeout(()=>void tick(),800);}
   }
   void tick();
-  return () => { stopped = true; clearTimeout(timer); controller.abort(); unsubscribe(); window.removeEventListener("beforeunload", beforeUnload); };
+  return ()=>{stopped=true;clearTimeout(timer);controller.abort();unsubscribe();window.removeEventListener('beforeunload',beforeUnload);};
 }

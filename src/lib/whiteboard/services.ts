@@ -1,8 +1,8 @@
-import { objects } from "../object-data";
+import { getBoardRepository } from "./document-store";
 import { UpdateObjectSchemaType, CreateShapeSchemaType, DeleteObjectSchemaType, NoArgumentsSchemaType, StoredObjectSchemaType, TextboxSchemaType, StoredObjectSchema } from "./schemas";
 
 export function listObjects(input: NoArgumentsSchemaType) {
-    return objects;
+    return getBoardRepository().view();
 }
 
 export function createShape(input: CreateShapeSchemaType, id = crypto.randomUUID()) {
@@ -10,7 +10,7 @@ export function createShape(input: CreateShapeSchemaType, id = crypto.randomUUID
         id,
         ...input
     }
-    objects.push(obj);
+    getBoardRepository().enqueue({kind:"put",object:obj});
 
     return {
         message: "shape created",
@@ -23,7 +23,7 @@ export function createTextbox(input: TextboxSchemaType, id = crypto.randomUUID()
         id,
         ...input
     }
-    objects.push(obj);
+    getBoardRepository().enqueue({kind:"put",object:obj});
 
     return {
         message: "textbox created",
@@ -32,21 +32,23 @@ export function createTextbox(input: TextboxSchemaType, id = crypto.randomUUID()
 }
 
 export function deleteObject(input: DeleteObjectSchemaType) {
+    const objects = getBoardRepository().view();
     const index = objects.findIndex((obj) => obj.id === input.id);
 
     if (index === -1) return { success: false, message: `Object with id ${input.id} not found` };
 
-    objects.splice(index, 1);
+    getBoardRepository().enqueue({kind:"delete",id:input.id});
 
     return { success: true, deleted_id: input };
 }
 
 export function clearObjects() {
-    objects.length = 0;
+    getBoardRepository().enqueue({kind:"clear"});
     return { success: true };
 }
 
 export function updateObject(input: UpdateObjectSchemaType) {
+    const objects = getBoardRepository().view();
     const index = objects.findIndex((obj) => obj.id === input.id);
 
     if (index === -1) return { success: false, message: `Object with id ${input.id} not found` };
@@ -68,7 +70,7 @@ export function updateObject(input: UpdateObjectSchemaType) {
                 objects[index][key as keyof StoredObjectSchemaType];
         }
 
-        objects[index] = parsed.data;
+        getBoardRepository().enqueue({kind:"put",object:parsed.data});
         return { success: true, old_values: originalValues, new_values: input.patch };
     } else {
         return { success: false, message: "Failed to parse updated object", error: parsed.error };

@@ -885,3 +885,8 @@ textarea::placeholder {
 .attached-label { position: absolute; pointer-events: all; width: max-content; max-width: 360px; white-space: pre-wrap; font-family: Helvetica, Arial, sans-serif; line-height: 1.2; padding: 3px 6px; border: 1px solid #e3e5dc; border-radius: 3px; cursor: move; touch-action: none; transform-origin: center; }
 .attached-label[data-selected="true"] { outline: 1px solid #4465e9; }
 .board-property-fields textarea { width: 100%; min-height: 60px; resize: vertical; }
+
+.board-tools { max-width: calc(100% - 24px); flex-wrap: wrap; }
+.board-file-error { flex-basis: 100%; max-width: 300px; margin: 0; color: #8b2252; }
+
+.board-file-menu { position: absolute; top: 38px; left: 0; width: 250px; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }

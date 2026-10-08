@@ -1,5 +1,6 @@
 "use client";
 
+import { BoardFileControls } from "./board-file-controls";
 import { AttachedLabels, LabelOptions } from "./attached-labels";
 import { useState } from "react";
 import { DefaultStylePanel, createShapeId, useEditor, useValue, type TLUiStylePanelProps } from "tldraw";
@@ -53,18 +54,20 @@ export function BoardControls() {
     editor.createShape(partial);
     editor.setSelectedShapes([id]);
   }
-  function field(label: string, key: string, value: string | number, type = "text", step?: number) {
-    return <label key={key}>{label}<input aria-label={label} type={type} value={value} step={step}
-      onKeyDown={(event) => event.stopPropagation()} onChange={(event) => {
-        const next = type === "number" ? event.target.valueAsNumber : event.target.value;
-        if (typeof next === "number" && !Number.isFinite(next)) return;
-        patch({ [key]: next });
-      }} /></label>;
-  }
   const originX = -view.x * zoom, originY = -view.y * zoom;
   return <>
     <AttachedLabels />
-    {shape && shape.type !== "board-object" && <LabelOptions shape={shape} />}
+    {shape && <LabelOptions shape={shape}>
+      {object?.object === "polygon" && <>
+        <p>Drag the vertex handles to reshape the polygon.</p>
+        <button disabled={state.readonly || editor.isShapeOrAncestorLocked(shape)} onClick={() => {
+          const first = object.points[0], last = object.points.at(-1)!;
+          patch({ points: [...object.points, { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }] });
+        }}>Add vertex</button>
+        <button disabled={state.readonly || editor.isShapeOrAncestorLocked(shape) || object.points.length <= 3}
+          onClick={() => patch({ points: object.points.slice(0, -1) })}>Remove last vertex</button>
+      </>}
+    </LabelOptions>}
     {axes && <svg className="board-axes" aria-hidden="true" width="100%" height="100%">
       <line x1={originX} x2={originX} y1="0" y2="100%" />
       <line x1="0" x2="100%" y1={originY} y2={originY} />
@@ -74,34 +77,10 @@ export function BoardControls() {
       <details><summary>Add shape</summary><div className="board-add-menu">
         {(["rect", "circle", "polygon", "arrow", "textbox"] as const).map((kind) => <button key={kind} disabled={state.readonly} onClick={(event) => { create(kind); const menu = event.currentTarget.closest("details"); if (menu) menu.open = false; }}>{kind === "rect" ? "Rectangle" : kind[0].toUpperCase() + kind.slice(1)}</button>)}
       </div></details>
+      <BoardFileControls />
       <button aria-pressed={state.grid} onClick={() => editor.updateInstanceState({ isGridMode: !state.grid })}>Grid</button>
       <button aria-pressed={axes} onClick={() => setAxes(!axes)}>Axes</button>
     </div>
-    {object && <details className="board-properties" open key={shape?.id} onPointerDown={(event) => event.stopPropagation()}>
-      <summary>{object.object} properties</summary>
-      <div className="board-property-fields">
-        {field("Rotation", "rotation", Math.round(object.rotation * 100) / 100, "number", 1)}
-        {object.object === "textbox" && <>
-          {field("Text", "text", object.text)}
-          {field("Text size", "fontSize", object.fontSize, "number", 1)}
-          {field("Text color", "textColor", object.textColor)}
-        </>}
-        {field("Label", "label", object.label ?? "")}
-        {field("Label X", "labelX", object.labelX ?? 0.5, "number", 0.05)}
-        {field("Label Y", "labelY", object.labelY ?? 0.5, "number", 0.05)}
-        {field("Label size", "labelFontSize", object.labelFontSize ?? 14, "number", 1)}
-        {field("Label color", "labelColor", object.labelColor ?? "#1f241c")}
-        {field("Label background", "labelBackground", object.labelBackground ?? "#fbfbf8")}
-        {object.object === "polygon" && <>
-          <p>Drag the vertex handles to reshape. The label handle moves its text.</p>
-          <button onClick={() => {
-            const first = object.points[0], last = object.points.at(-1)!;
-            patch({ points: [...object.points, { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }] });
-          }}>Add vertex</button>
-          <button disabled={object.points.length <= 3} onClick={() => patch({ points: object.points.slice(0, -1) })}>Remove last vertex</button>
-        </>}
-      </div>
-    </details>}
     <output className="board-coordinates">({Math.round(state.pointer.x)}, {Math.round(-state.pointer.y)}) · Y ↑</output>
   </>;
 }

@@ -4,6 +4,46 @@ Creating a harness around gpt5.6 to allow it to write and draw on a whiteboard c
 
 run "/codex login" on first boot
 
+## Current storage — pass 3C
+
+This supersedes the storage limitations described in the earlier pass notes below.
+The complete tldraw document is authoritative and saved locally in
+`.data/whiteboard.json` (ignored by Git). Set `WHITEBOARD_DATA_PATH` to use
+another durable file location. Native shape records, rich text, styles, opacity,
+pages, groups, bindings, assets, polygon data and attached-label metadata are
+saved together. Browser refresh and server restart retain the saved document.
+This repository supports one server process; it is not a multiplayer service.
+
+The old in-memory object array is removed. Existing agent tools use a materialized
+compatibility projection of supported shapes and a durable command queue. An
+open board applies those commands and saves the resulting document; queued
+commands survive restart even when no board is open. Unsupported native shapes
+are preserved in the document but are not exposed through the existing tools.
+The agent loop and legacy screenshot feedback remain unchanged in this pass.
+
+Saves validate records and atomically replace the file. Revision checks reject
+stale saves. Overlapping local and agent edits stop synchronization and preserve
+an unsaved browser recovery copy when space permits. Download the board before
+reloading after a conflict; then use **Board file → Recover copy** if desired.
+**Download board** and **Restore board** export/import the full document as JSON.
+Restoring replaces the board and retains a browser recovery copy of the previous
+document when space permits. Invalid files leave the current board intact.
+
+### Verification before the next pass
+
+- [x] Production build and TypeScript checks.
+- [x] Changed component and storage lint checks.
+- [x] Document round-trip with groups, bindings, rich text, styles and labels.
+- [x] Repository restart, legacy migration, stale saves and corrupt-file rejection.
+- [ ] Manually confirm semi, solid and patterned fills survive refresh.
+- [ ] Draw freehand, add a note and image, group shapes and bind an arrow; refresh.
+- [ ] Move and edit attached labels, including rotated polygons; refresh.
+- [ ] Ask the agent to edit a shape and confirm native styling remains intact.
+- [ ] Download, restore, refresh, and confirm the complete board returns.
+- [ ] Edit in two tabs and confirm a conflict preserves the unsaved board.
+
+Complete the unchecked interaction checklist before beginning the next pass.
+
 ## tldraw migration — pass 1
 
 The home page now mounts the native tldraw editor in a browser-only component.

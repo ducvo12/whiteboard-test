@@ -1,9 +1,10 @@
 "use client";
 
+import { polygonRecordProps } from "@/lib/whiteboard/document-schema";
 import { useMemo } from "react";
 import { PolygonGeoStyleUtil, polygonNativeShape } from "@/lib/whiteboard/polygon-native-style";
 
-import { DefaultColorStyle, DefaultSizeStyle, DefaultFillStyle, DefaultDashStyle, Ellipse2d, HTMLContainer, Polygon2d, Polyline2d, Rectangle2d, ShapeUtil, SVGContainer, T, Vec, getIndexAbove, resizeBox, useEditor, useValue, type TLHandle, type TLHandleDragInfo, type TLResizeInfo, type SvgExportContext } from "tldraw";
+import { Ellipse2d, HTMLContainer, Polygon2d, Polyline2d, Rectangle2d, ShapeUtil, SVGContainer, Vec, getIndexAbove, resizeBox, useEditor, useValue, type TLHandle, type TLHandleDragInfo, type TLResizeInfo, type SvgExportContext } from "tldraw";
 import { polygonObject } from "@/lib/whiteboard/tldraw-adapter";
 import BoardShape from "./board-shape";
 import { boardBounds, boardProps, localBoardObject, type ExactBoardShape } from "@/lib/whiteboard/tldraw-board-model";
@@ -45,7 +46,7 @@ function Content({ shape }: { shape: ExactBoardShape }) {
 
 export class ExactBoardShapeUtil extends ShapeUtil<ExactBoardShape> {
   static override type = "board-object" as const;
-  static override props = { w: T.number, h: T.number, data: T.string, color: DefaultColorStyle, size: DefaultSizeStyle, fill: DefaultFillStyle, dash: DefaultDashStyle };
+  static override props = polygonRecordProps;
   getDefaultProps() { return boardProps({ object: "rect", x: 0, y: 0, w: 120, h: 80, rotation: 0, strokeColor: "#344b2d", fillColor: "#c5d4b4", strokeWidth: 2 }); }
   override canEdit() { return true; }
   override isAspectRatioLocked(shape: ExactBoardShape) { return localBoardObject(shape.props).object === "circle"; }

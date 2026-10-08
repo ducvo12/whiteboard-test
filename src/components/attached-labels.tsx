@@ -1,24 +1,30 @@
 "use client";
 
-import { useRef } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Mat, toRichText, useEditor, useValue, type TLShape } from 'tldraw';
-import { labelFractions, labelFromObject, labelPoint, readAttachedLabel, type AttachedLabel } from '@/lib/whiteboard/attached-label';
-import { shapeToObject } from '@/lib/whiteboard/tldraw-adapter';
+import { labelFields, labelFractions, labelFromObject, labelPoint, readAttachedLabel, type AttachedLabel } from '@/lib/whiteboard/attached-label';
+import { polygonObject, shapeToObject } from '@/lib/whiteboard/tldraw-adapter';
 
-export function LabelOptions({ shape }: { shape: TLShape }) {
+export function LabelOptions({ shape, children }: { shape: TLShape; children?: ReactNode }) {
   const editor = useEditor();
-  const label = readAttachedLabel(shape);
-  if ((shape.type !== 'geo' && shape.type !== 'arrow' && shape.type !== 'text') || !shapeToObject(editor, shape)) return null;
+  const polygon = shape.type === 'board-object' ? polygonObject(shape.props) : null;
+  const label = polygon ? labelFromObject(polygon) : readAttachedLabel(shape);
+  if ((!polygon && shape.type !== 'geo' && shape.type !== 'arrow' && shape.type !== 'text') || !shapeToObject(editor, shape)) return null;
   const locked = editor.getIsReadonly() || editor.isShapeOrAncestorLocked(shape);
   function update(next: AttachedLabel) {
     if (locked) return;
     editor.markHistoryStoppingPoint('Edit attached label');
+    if (polygon && shape.type === 'board-object') {
+      editor.updateShape({ id: shape.id, type: shape.type, props: { data: JSON.stringify({ ...polygon, ...labelFields(next) }) } });
+      return;
+    }
     editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, attachedLabel: next } });
   }
   return <details className="board-properties" open key={shape.id} onPointerDown={e => e.stopPropagation()}>
     <summary>Label options</summary>
     <div className="board-property-fields">
       {!label ? <><p>Keep native text editing, or use a separately positioned label.</p><button disabled={locked} onClick={() => {
+        if (shape.type !== 'geo' && shape.type !== 'arrow' && shape.type !== 'text') return;
         const object = shapeToObject(editor, shape)!;
         const attached = labelFromObject(object);
         attached.text ||= 'Label';
@@ -39,6 +45,7 @@ export function LabelOptions({ shape }: { shape: TLShape }) {
         </label>)}
         <button disabled={locked} onClick={() => update({ ...label, text: '' })}>Clear label</button>
       </>}
+      {children}
     </div>
   </details>;
 }
