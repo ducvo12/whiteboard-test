@@ -1,6 +1,7 @@
-import type { Editor, TLShapeId } from "tldraw";
+import { readAttachedLabel } from "./attached-label";
+import { toRichText, type Editor, type TLShapeId } from "tldraw";
 import { BoardObjectSchema, StoredObjectSchema, type BoardObjectSchemaType, type StoredObjectSchemaType } from "./schemas";
-import { changedFields, objectToShape, shapeId, shapeToObject } from "./tldraw-adapter";
+import { serverObjectId, changedFields, preserveNativeStyles, objectToShape, shapeId, shapeToObject } from "./tldraw-adapter";
 
 type Baseline = { object: StoredObjectSchemaType; projection: BoardObjectSchemaType };
 
@@ -83,7 +84,7 @@ export function connectBoard(editor: Editor, report: (message: string) => void) 
             const projection = shapeToObject(editor, shape);
             if (!projection) continue;
             if (!baseline) {
-              const serverId = typeof shape.meta.boardId === "string" ? shape.meta.boardId : id;
+              const serverId = serverObjectId(shape);
               const input = restoreInput(shape.meta.boardSnapshot, projection);
               const saved = StoredObjectSchema.parse(await request("PUT", { ...input, id: serverId }));
               known.set(id, { object: saved, projection });
@@ -125,6 +126,14 @@ export function connectBoard(editor: Editor, report: (message: string) => void) 
           partial.parentId = editor.getCurrentPageId();
           if (!conflicts.has(id) && JSON.stringify(known.get(id)?.object) === JSON.stringify(obj)) continue;
           const existing = editor.getShape(id);
+          const previous = known.get(id)?.object;
+          if (existing?.type === partial.type && previous && partial.props) {
+            partial.props = preserveNativeStyles(previous, obj, partial.props);
+            if (readAttachedLabel(partial as { meta: typeof existing.meta }) && !readAttachedLabel(existing) &&
+              (existing.type === 'arrow' || existing.type === 'geo' && existing.meta.boardKind !== 'textbox')) {
+              if (partial.type === 'geo' || partial.type === 'arrow') partial.props = { ...partial.props, richText: toRichText('') };
+            }
+          }
           if (existing && existing.type !== partial.type) {
             const selected = editor.getSelectedShapeIds().includes(id);
             editor.deleteShapes([id]);
@@ -144,18 +153,11 @@ export function connectBoard(editor: Editor, report: (message: string) => void) 
         if (known.size) editor.zoomToFit();
         else editor.centerOnPoint({ x: 0, y: 0 });
       }
-      const polygons = objects.filter((obj) => obj.object === "polygon").length;
       const localOnly = editor.getCurrentPageShapes().filter((shape) => !shapeToObject(editor, shape)).length;
-      const approximateStyles = [...known.values()].some(({ object, projection }) => {
-        const original = object as unknown as Record<string, unknown>;
-        const displayed = projection as unknown as Record<string, unknown>;
-        return ["strokeColor", "fillColor", "strokeWidth", "labelFontSize", "fontSize"].some((key) => original[key] !== undefined && original[key] !== displayed[key]) ||
-          (object.labelX !== undefined && object.labelX !== 0.5) || (object.labelY !== undefined && object.labelY !== 0.5);
-      });
-      report([lastError, polygons ? `${polygons} polygon(s) are preserved on the server; display/editing comes in pass 3.` : "",
-        approximateStyles ? "Some original styling is approximated in tldraw; server values are preserved." : "",
-        localOnly ? `${localOnly} unsupported shape(s) or empty text: edits are local only. Use rectangles, circles, straight arrows, or text.` : "",
+      report([lastError,
+        localOnly ? `${localOnly} unsupported shape(s) or empty text: edits are local only. Use board shapes or the native rectangle, circle, straight-arrow, and text tools.` : "",
         dirty.size ? "Some edits are not saved yet." : ""].filter(Boolean).join(" "));
+
     } catch (error) {
       if (!stopped) report(error instanceof Error ? error.message : "Board connection failed. Retrying…");
     } finally {

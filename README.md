@@ -35,7 +35,7 @@ Before pass 2, manually try your usual drawing and keyboard interactions.
 For a production deployment, configure `NEXT_PUBLIC_TLDRAW_LICENSE_KEY` with
 an appropriate tldraw license key.
 
-## tldraw migration — pass 2 (current)
+## tldraw migration — pass 2
 
 The tldraw editor and the existing agent now share `/api/objects`. Native
 rectangles, circles, straight arrows, and text synchronize in both directions.
@@ -73,7 +73,7 @@ node --experimental-strip-types --test --test-force-exit tests/tldraw-adapter.te
 node --test tests/board-api.test.mjs
 ```
 
-### Known limits
+### Limits at the end of pass 2 (superseded by pass 3 below)
 
 - Polygons remain intact in server data but are not rendered yet; a notice says so.
 - Freehand drawings, images, notes, curved/elbow arrows, and non-circular ellipses
@@ -86,3 +86,165 @@ node --test tests/board-api.test.mjs
 - Groups/bindings are not persisted as relationships. Supported children and
   straight-arrow endpoints are saved as board-space geometry.
 - This polling adapter is a development bridge, not a multiplayer backend.
+
+
+## tldraw migration — pass 3 (initial implementation)
+
+All five server object types now render as custom tldraw shapes: rectangles,
+circles, polygons, arrows, and textboxes. They use the existing board renderer
+inside tldraw so arbitrary stroke/fill colors, fill opacity, stroke width,
+textbox font size/color, and label size/color/background/position are preserved.
+The existing agent loop, tool schemas, and server screenshot pipeline are unchanged.
+
+Use **Add shape** for any of the five types. Select a shape to edit its exact
+properties. Polygon vertices and arrow endpoints have draggable handles; a
+label has its own position handle. Polygon properties can add or remove vertices.
+Select a shape and press Enter to edit its text or label, then Escape to finish.
+Normal tldraw selection, movement, resizing, rotation, and undo/redo still apply.
+Grid and Cartesian axes can be toggled, and the pointer readout uses Y-up coordinates.
+Native rectangle/circle/straight-arrow/text creations become board shapes after
+saving; use their property panel for subsequent exact styling.
+
+### Verification before pass 4
+
+- [x] All five types round-trip through the adapter at five rotations.
+- [x] Exact colors, opacity, stroke widths, font sizes, and label fields survive conversion.
+- [x] Polygon resizing scales vertices while retaining stroke and font sizes.
+- [x] Browser: polygon creation, vertex dragging, adding/removing vertices, and rotation.
+- [x] Browser: label dragging updates its coordinates; undo restores label position.
+- [x] Browser: property edits can be undone, and Enter opens textbox editing.
+- [x] Browser: saved polygon geometry, rotation, styling, and labels survive refresh.
+- [x] Desktop and 390 × 844 mobile controls remain accessible with chat open.
+- [x] 28 adapter tests, API conflict/retry checks, changed-file lint, and webpack production build.
+- [ ] Before proceeding, try your usual AI prompts and compare their drawings with screenshots.
+- [ ] Before proceeding, try your usual selection, resizing, undo/redo, and label edits.
+
+### Remaining limits
+
+- Board storage is still single-process memory; server restarts clear it.
+- Freehand drawings, images, notes, curved/elbow arrows, and non-circular ellipses
+  remain local-only and show a notice. Groups/bindings are not persisted as relationships.
+- The server schema supports plain text and solid strokes. Native rich formatting,
+  dash patterns, and special fills are reduced when converted to board shapes.
+- The screenshot endpoint renders server objects with the existing renderer;
+  it does not capture tldraw controls, selections, grid, or axes.
+- Polling remains a development bridge, not multiplayer persistence.
+
+
+## tldraw migration — pass 3A
+
+Standard server objects now import as native tldraw shapes: rectangles/circles
+and boxed text use geo shapes, arrows use native arrows, and native text-tool
+creations stay text shapes. Saving no longer replaces native shapes with custom
+ones. Native label editing, font/alignment controls, styles, and selection behavior
+remain available. The agent loop and tool definitions are unchanged.
+
+Only editable polygons use the custom board shape. They declare tldraw's shared
+color, size, fill, and dash properties and use the native opacity setting. The
+native style panel stays visible, including for mixed selections. The polygon
+panel contains only its extra vertex and label controls, on the left so it does
+not cover native styling. Add shape inherits the current shared style defaults.
+The later fill consistency correction below replaces the initial custom outline/fill rendering.
+
+The bridge keeps styles it cannot represent when applying unrelated server edits.
+For example, moving an object through the agent does not reset its native dash or
+font choice. Existing server colors are retained on geometry-only saves even when
+the native display maps them to a palette color.
+
+### Verification before 3B
+
+- [x] Standard objects import as native shapes; only polygons use custom geometry.
+- [x] Coordinate round trips for all five object types at five rotations.
+- [x] Polygon shared color, size, and fill changes reach the agent projection.
+- [x] Agent geometry updates preserve native-only style and rich-text properties.
+- [x] Browser: polygon color, dashed outline, fill, thickness, labels, and movement.
+- [x] Browser: Add shape creates native rectangles and exposes native text/alignment controls.
+- [x] 30 adapter tests, API checks, TypeScript, changed-file lint, and webpack build.
+- [ ] Try native rectangle/circle/arrow/text creation, styling, and undo/redo.
+- [ ] Try polygon vertex edits and styling a mixed native/polygon selection.
+- [ ] Try your usual AI prompts and confirm their objects remain editable.
+
+### Deliberately deferred
+
+- 3B: advanced attached-label positioning and styling on native shapes. Existing
+  label coordinates/backgrounds remain in server data but native labels currently
+  use native placement; textbox secondary labels are not displayed separately.
+- 3C: authoritative tldraw document storage and matching screenshots. Until then,
+  refresh rebuilds from the old object schema: native-only dash, overall opacity,
+  font/rich-text choices, bindings, and unsupported shapes are not fully retained.
+  Agent screenshots still use the old renderer and can differ from the editor.
+- Arbitrary colors, independent stroke/fill colors, and exact font/line sizes map
+  to native palette/size choices for display. Untouched server values remain intact.
+- Server storage remains process memory and resets on restart.
+
+
+## tldraw migration — pass 3B (current)
+
+Native shapes keep their normal tldraw labels. Select a supported native shape,
+open **Label options**, and choose **Add advanced label** for independent text,
+position, exact font size, text color, and background. Drag the label directly or
+edit Label X/Y (fractions of the parent bounds; Y increases upward). Positions may
+extend beyond the shape. Plain geometric/arrow label text transfers to the advanced
+label when enabled. Textbox body text stays separate from its annotation.
+
+Advanced labels are parent-owned metadata, rendered in a canvas overlay. Their
+position follows the parent's local coordinate system, including resizing and
+rotation. Duplication copies the label, deletion removes it, and undo/redo restores
+both together. Clicking a label selects its parent. Locked parents prevent edits.
+The polygon retains its existing label and vertex handles.
+
+The existing object bridge saves these settings as label/labelX/labelY/
+labelFontSize/labelColor/labelBackground, so refresh and agent edits retain them.
+Server objects with explicit advanced positioning/background/size load using the
+extension automatically. The agent loop and tool definitions are unchanged.
+Duplication now gets an independent server ID even when native tldraw copies the
+original object's metadata.
+
+### Verification before 3C
+
+- [x] Exact advanced label fields round trip for native rectangles, arrows, and textboxes.
+- [x] Plain native labels remain native without advanced options.
+- [x] Relative positioning and rotated-parent coordinate calculations are tested.
+- [x] Browser: add/edit/drag labels, including outside the parent bounds.
+- [x] Browser: label drag undo/redo, parent movement, and resizing.
+- [x] Browser: textbox body text and separate annotation coexist.
+- [x] Browser: advanced labels and settings survive refresh.
+- [x] Browser: duplicate/delete/undo carries the label with its parent.
+- [x] 36 focused tests, API checks, TypeScript, changed-file lint, and webpack build.
+- [ ] Try your normal AI prompts with label positions, colors, backgrounds, and sizes.
+- [ ] Try label dragging after rotating a shape, plus zoom/pan and mobile input.
+- [ ] Try native label editing alongside advanced labels and polygon label handles.
+
+Run focused tests with:
+
+```sh
+node --experimental-strip-types --test --test-force-exit tests/tldraw-adapter.test.mjs tests/attached-label.test.mjs
+```
+
+### Remaining work for 3C
+
+Full tldraw document storage, matching screenshots/exports, and native-only style
+persistence remain deferred. Advanced labels are an HTML overlay and are not yet
+included in native tldraw SVG/image export. The server screenshot still renders
+saved label fields with the legacy renderer, so wrapping and bounds can differ.
+There is one advanced label per shape; polygon labels use their existing renderer.
+Advanced text is edited through Label options; native text uses normal tldraw editing.
+Server memory still resets on restart.
+
+
+### Polygon fill consistency correction
+
+Polygon bodies now delegate to tldraw's native GeoShapeUtil renderer through a
+rendering-only polygon path. Native theme colors, Draw/dash strokes, zoom handling,
+all six fill modes, and pattern export definitions are reused directly. Custom
+polygon vertices and labels remain unchanged. The rendering-only geo record is
+never added to the document or the shape picker.
+
+Semi uses the theme's opaque background-like color; Solid uses the selected
+color's pastel variant. Fill and Lined fill use their respective native theme
+colors, and Pattern uses native pattern rendering. Overall shape opacity remains
+controlled by tldraw. There is no separate hidden polygon fill setting.
+
+Verified with 48 tests (including every fill mode in light/dark themes), TypeScript,
+changed-file lint, webpack build, and browser Semi/Pattern/Lined fill checks.
+Exact fill-mode persistence across refresh remains part of 3C.

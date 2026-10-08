@@ -89,10 +89,10 @@ textarea:focus-visible {
 
 .board-sync-notice {
     position: absolute;
-    top: 52px;
+    top: 96px;
     left: 12px;
     z-index: 300;
-    max-width: min(420px, calc(100% - 24px));
+    max-width: min(280px, calc(100% - 24px));
     margin: 0;
     padding: 8px 12px;
     background: var(--paper-raised);
@@ -101,6 +101,24 @@ textarea:focus-visible {
     font-size: 12px;
     pointer-events: none;
 }
+
+.board-axes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.board-axes line { stroke: #344b2d; stroke-opacity: 0.2; stroke-width: 1; }
+.board-axes text { fill: #6f7668; font-size: 11px; }
+.board-tools, .board-properties, .board-coordinates { position: absolute; pointer-events: all; color: var(--ink); font-family: Arial, sans-serif; font-size: 12px; }
+.board-tools { z-index: 20; top: 48px; left: 12px; display: flex; gap: 4px; background: var(--paper-raised); padding: 4px; border: 1px solid var(--line); border-radius: 8px; }
+.board-tools button, .board-tools summary, .board-property-fields button { padding: 6px 8px; border-radius: 5px; cursor: pointer; }
+.board-tools button[aria-pressed="true"] { background: var(--olive-soft); }
+.board-add-menu { position: absolute; top: 100%; left: 0; display: grid; padding: 4px; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; }
+.board-add-menu button:hover, .board-property-fields button:hover { background: var(--olive-soft); }
+.board-properties { top: 100px; left: 12px; width: 220px; max-height: calc(100% - 140px); overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-raised); box-shadow: var(--shadow); }
+.board-properties summary { padding: 10px; cursor: pointer; text-transform: capitalize; font-weight: 600; }
+.board-property-fields { padding: 0 10px 10px; display: grid; gap: 6px; }
+.board-property-fields label { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 0; font-size: 11px; }
+.board-property-fields input { width: 100px; min-width: 0; padding: 4px; border: 1px solid var(--line); border-radius: 4px; background: white; color: var(--ink); }
+.board-property-fields p { margin: 4px 0; line-height: 1.4; color: var(--ink-muted); }
+.board-coordinates { bottom: 64px; left: 12px; pointer-events: none; padding: 3px 5px; background: var(--paper-raised); border-radius: 4px; color: var(--ink-muted); }
+@media (max-width: 720px) { .board-properties { width: 190px; max-height: 140px; top: 90px; } .board-coordinates { bottom: 80px; left: auto; right: 12px; } }
 
 .canvas {
     position: absolute;
@@ -862,3 +880,8 @@ textarea::placeholder {
         animation: none;
     }
 }
+
+.attached-label-layer { position: absolute; inset: 0; pointer-events: none; }
+.attached-label { position: absolute; pointer-events: all; width: max-content; max-width: 360px; white-space: pre-wrap; font-family: Helvetica, Arial, sans-serif; line-height: 1.2; padding: 3px 6px; border: 1px solid #e3e5dc; border-radius: 3px; cursor: move; touch-action: none; transform-origin: center; }
+.attached-label[data-selected="true"] { outline: 1px solid #4465e9; }
+.board-property-fields textarea { width: 100%; min-height: 60px; resize: vertical; }

@@ -1,4 +1,4 @@
-import { StoredObjectSchemaType } from "./schemas";
+import type { StoredObjectSchemaType } from "./schemas";
 
 export const GRID = 50;
 export const MIN_ZOOM = 0.1;
