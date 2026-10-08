@@ -2,42 +2,32 @@
 
 import { useRef, type ReactNode } from 'react';
 import { Mat, toRichText, useEditor, useValue, type TLShape } from 'tldraw';
-import { labelFields, labelFractions, labelFromObject, labelPoint, readAttachedLabel, type AttachedLabel } from '@/lib/whiteboard/attached-label';
-import { polygonObject, shapeToObject } from '@/lib/whiteboard/tldraw-adapter';
+import { labelFractions, labelFromObject, labelPoint, type AttachedLabel } from '@/lib/whiteboard/attached-label';
+import { readShapeLabel, attachedLabelUpdate } from '@/lib/whiteboard/polygon-label';
+import { shapeToObject } from '@/lib/whiteboard/tldraw-adapter';
 
 export function LabelOptions({ shape, children }: { shape: TLShape; children?: ReactNode }) {
   const editor = useEditor();
-  const polygon = shape.type === 'board-object' ? polygonObject(shape.props) : null;
-  const label = polygon ? (polygon.label !== undefined ? labelFromObject(polygon) : null) : readAttachedLabel(shape);
-  if ((!polygon && shape.type !== 'geo' && shape.type !== 'arrow' && shape.type !== 'text') || !shapeToObject(editor, shape)) return null;
+  const label = readShapeLabel(shape);
+  if ((shape.type !== 'board-object' && shape.type !== 'geo' && shape.type !== 'arrow' && shape.type !== 'text') || !shapeToObject(editor, shape)) return null;
   const locked = editor.getIsReadonly() || editor.isShapeOrAncestorLocked(shape);
   function update(next: AttachedLabel) {
     if (locked) return;
     editor.markHistoryStoppingPoint('Edit attached label');
-    if (polygon && shape.type === 'board-object') {
-      editor.updateShape({ id: shape.id, type: shape.type, props: { data: JSON.stringify({ ...polygon, ...labelFields(next) }) } });
-      return;
-    }
-    editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, attachedLabel: next } });
+    editor.updateShape(attachedLabelUpdate(shape, next));
   }
   function clear() {
     if (locked) return;
     editor.markHistoryStoppingPoint('Clear attached label');
-    if (polygon && shape.type === 'board-object') {
-      const data = { ...polygon } as Record<string, unknown>;
-      for (const key of Object.keys(labelFields(labelFromObject(polygon)))) delete data[key];
-      editor.updateShape({ id: shape.id, type: shape.type, props: { data: JSON.stringify(data) } });
-    } else {
-      editor.updateShape({ id: shape.id, type: shape.type, meta: { ...shape.meta, attachedLabel: null } });
-    }
+    editor.updateShape(attachedLabelUpdate(shape, null));
   }
   return <details className="board-properties" open key={shape.id} onPointerDown={e => e.stopPropagation()}>
     <summary>Label options</summary>
     <div className="board-property-fields">
       {!label ? <><p>Keep native text editing, or use a separately positioned label.</p><button disabled={locked} onClick={() => {
         if (locked) return;
-        if (polygon) {
-          update({ ...labelFromObject(polygon), text: 'Label' });
+        if (shape.type === 'board-object') {
+          update({ ...labelFromObject(shapeToObject(editor, shape)!), text: 'Label' });
           return;
         }
         if (shape.type !== 'geo' && shape.type !== 'arrow' && shape.type !== 'text') return;
@@ -76,7 +66,7 @@ export function AttachedLabels() {
     camera: editor.getCamera(),
   }), [editor]);
   return <div className="attached-label-layer">{state.shapes.map(shape => {
-    const label = readAttachedLabel(shape);
+    const label = readShapeLabel(shape);
     if (!label?.text.trim()) return null;
     const bounds = editor.getShapeGeometry(shape).bounds;
     const transform = editor.getShapePageTransform(shape);
@@ -100,10 +90,10 @@ export function AttachedLabels() {
         e.stopPropagation();
         const original = labelPoint(bounds, drag.current.label), pointer = localPointer(e);
         const position = labelFractions(bounds, {x:original.x + pointer.x - drag.current.point.x,y:original.y + pointer.y - drag.current.point.y});
-        editor.updateShape({id:shape.id,type:shape.type,meta:{...shape.meta,attachedLabel:{...label,...position}}});
+        editor.updateShape(attachedLabelUpdate(shape, {...label,...position}));
       }}
       onPointerUp={e => { if (drag.current?.id === shape.id) { e.stopPropagation(); drag.current = null; editor.markHistoryStoppingPoint('Finish moving label'); } }}
-      onPointerCancel={() => { if (drag.current?.id === shape.id) { editor.updateShape({id:shape.id,type:shape.type,meta:{...shape.meta,attachedLabel:drag.current.label}}); drag.current=null; } }}
+      onPointerCancel={() => { if (drag.current?.id === shape.id) { editor.updateShape(attachedLabelUpdate(shape, drag.current.label)); drag.current=null; } }}
     >{label.text}</button>;
   })}</div>;
 }

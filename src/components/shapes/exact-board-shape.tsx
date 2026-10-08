@@ -4,51 +4,39 @@ import { polygonRecordProps } from "@/lib/whiteboard/document-schema";
 import { useMemo } from "react";
 import { PolygonGeoStyleUtil, polygonNativeShape } from "@/lib/whiteboard/polygon-native-style";
 
-import { Ellipse2d, HTMLContainer, Polygon2d, Polyline2d, Rectangle2d, ShapeUtil, SVGContainer, Vec, getIndexAbove, resizeBox, useEditor, useValue, type TLHandle, type TLHandleDragInfo, type TLResizeInfo, type SvgExportContext } from "tldraw";
+import { Ellipse2d, Polygon2d, Polyline2d, Rectangle2d, ShapeUtil, Vec, getIndexAbove, resizeBox, useEditor, type TLHandle, type TLHandleDragInfo, type TLResizeInfo, type SvgExportContext } from "tldraw";
 import { polygonObject } from "@/lib/whiteboard/tldraw-adapter";
-import BoardShape from "./board-shape";
 import { boardBounds, boardProps, localBoardObject, type ExactBoardShape } from "@/lib/whiteboard/tldraw-board-model";
-import { labelPlacement } from "@/lib/whiteboard/label";
+import { labelMetrics } from "@/lib/whiteboard/label";
+import { labelPoint } from "@/lib/whiteboard/attached-label";
+import { readShapeLabel } from "@/lib/whiteboard/polygon-label";
 
 function PolygonLabels({ shape }: { shape: ExactBoardShape }) {
-  const object = polygonObject(shape.props);
-  return <BoardShape obj={{ ...object, strokeColor: 'transparent', fillColor: 'transparent', id: shape.id }} toScreen={(x, y) => ({ sx: x, sy: -y })} zoom={1} />;
+  const label = readShapeLabel(shape);
+  if (!label?.text.trim()) return null;
+  const center = labelPoint({x:0,y:0,w:shape.props.w,h:shape.props.h}, label);
+  const lines = label.text.split('\n');
+  const width = Math.max(...lines.map(line => labelMetrics(line, label.size).w)) + 12;
+  const lineHeight = label.size * 1.2, height = lines.length * lineHeight + 6;
+  return <g>
+    <rect x={center.x-width/2} y={center.y-height/2} width={width} height={height} rx={3} fill={label.background} stroke="#e3e5dc" />
+    <text fill={label.color} fontSize={label.size} textAnchor="middle" dominantBaseline="central">
+      {lines.map((line,i) => <tspan key={i} x={center.x} y={center.y+(i-(lines.length-1)/2)*lineHeight}>{line}</tspan>)}
+    </text>
+  </g>;
 }
 
 function Drawing({ shape }: { shape: ExactBoardShape }) {
   const editor = useEditor();
   const util = useMemo(() => new PolygonGeoStyleUtil(editor), [editor]);
-  const native = polygonNativeShape(shape, editor);
-  return <>
-    {util.component(native)}
-    <SVGContainer style={{ width: shape.props.w, height: shape.props.h, overflow: 'visible', fontFamily: 'Helvetica, Arial, sans-serif' }}><PolygonLabels shape={shape} /></SVGContainer>
-  </>;
-}
-
-function Content({ shape }: { shape: ExactBoardShape }) {
-  const editor = useEditor();
-  const editing = useValue("editing board text", () => editor.getEditingShapeId() === shape.id, [editor, shape.id]);
-  const object = polygonObject(shape.props);
-  return <>
-    <Drawing shape={shape} />
-    {editing && <HTMLContainer style={{ pointerEvents: "all", width: Math.max(shape.props.w, 140), height: Math.max(shape.props.h, 60) }}>
-      <textarea aria-label={object.object === "textbox" ? "Edit textbox" : "Edit shape label"} autoFocus
-        defaultValue={object.object === "textbox" ? object.text : object.label ?? ""}
-        style={{ width: "100%", height: "100%", minHeight: 0, fontSize: object.object === "textbox" ? object.fontSize : object.labelFontSize ?? 14 }}
-        onPointerDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") editor.setEditingShape(null); }}
-        onBlur={() => editor.setEditingShape(null)}
-        onChange={(event) => editor.updateShape({ id: shape.id, type: shape.type, props: { data: JSON.stringify({ ...object,
-          ...(object.object === "textbox" ? { text: event.target.value || " " } : { label: event.target.value }) }) } })} />
-    </HTMLContainer>}
-  </>;
+  return util.component(polygonNativeShape(shape, editor));
 }
 
 export class ExactBoardShapeUtil extends ShapeUtil<ExactBoardShape> {
   static override type = "board-object" as const;
   static override props = polygonRecordProps;
   getDefaultProps() { return boardProps({ object: "rect", x: 0, y: 0, w: 120, h: 80, rotation: 0, strokeColor: "#344b2d", fillColor: "#c5d4b4", strokeWidth: 2 }); }
-  override canEdit() { return true; }
+  override canEdit() { return false; }
   override isAspectRatioLocked(shape: ExactBoardShape) { return localBoardObject(shape.props).object === "circle"; }
   getGeometry(shape: ExactBoardShape) {
     const object = polygonObject(shape.props);
@@ -57,7 +45,7 @@ export class ExactBoardShapeUtil extends ShapeUtil<ExactBoardShape> {
     if (object.object === "arrow") return new Polyline2d({ points: [new Vec(object.x, -object.y), new Vec(object.x2, -object.y2)] });
     return new Rectangle2d({ width: shape.props.w, height: shape.props.h, isFilled: true });
   }
-  component(shape: ExactBoardShape) { return <Content shape={shape} />; }
+  component(shape: ExactBoardShape) { return <Drawing shape={shape} />; }
   getIndicatorPath(shape: ExactBoardShape) { return new Path2D(this.getGeometry(shape).getSvgPathData()); }
   override getCanvasSvgDefs() { return new PolygonGeoStyleUtil(this.editor).getCanvasSvgDefs(); }
   override toSvg(shape: ExactBoardShape, context: SvgExportContext) {
@@ -75,21 +63,11 @@ export class ExactBoardShapeUtil extends ShapeUtil<ExactBoardShape> {
     const handles: TLHandle[] = [];
     if (object.object === "polygon") object.points.forEach((p, i) => handles.push(handle(`vertex-${i}`, `Vertex ${i + 1}`, p.x, -p.y)));
     if (object.object === "arrow") handles.push(handle("tail", "Arrow tail", object.x, -object.y), handle("head", "Arrow head", object.x2, -object.y2));
-    if (object.label?.trim()) {
-      const label = labelPlacement({ ...object, id: shape.id }, object.label);
-      handles.push(handle("label", "Move label", label.cx, -label.cy));
-    }
     return handles;
   }
   override onHandleDrag(current: ExactBoardShape, { handle, initial }: TLHandleDragInfo<ExactBoardShape>) {
     const shape = initial ?? current;
     const object = polygonObject(shape.props);
-    if (handle.id === "label") {
-      const b = boardBounds(object);
-      return { id: shape.id, type: shape.type, props: { data: JSON.stringify({ ...object,
-        labelX: (handle.x - b.minX) / Math.max(b.maxX - b.minX, 1),
-        labelY: (-handle.y - b.minY) / Math.max(b.maxY - b.minY, 1) }) } };
-    }
     if (object.object === "polygon" && handle.id.startsWith("vertex-")) {
       const i = Number(handle.id.slice(7));
       object.points[i] = { x: handle.x, y: -handle.y };

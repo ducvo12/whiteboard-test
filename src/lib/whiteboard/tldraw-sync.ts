@@ -2,6 +2,7 @@ import { getSnapshot, loadSnapshot, type Editor, type TLShapeId } from 'tldraw';
 import { StoredObjectSchema, type BoardObjectSchemaType, type StoredObjectSchemaType } from './schemas';
 import { changedFields, serverObjectId, shapeId, shapeToObject } from './tldraw-adapter';
 import { applyAgentObject } from './apply-board-command';
+import { polygonLabelMigration } from './polygon-label';
 import type { SavedBoard } from './document-store';
 
 export const UNSAVED_BOARD_KEY = 'whiteboard-unsaved-document';
@@ -36,7 +37,16 @@ export function connectBoard(editor:Editor, report:(message:string)=>void) {
     return [...native].map(([id,object])=>{
       const shape=editor.getShape(id)!, serverId=serverObjectId(shape);
       const old=base.get(serverId), before=nativeBase.get(id);
-      return old && before && before.object === object.object ? {...old,...changedFields(before,object),id:serverId} : {...object,id:serverId};
+      const projected = old && before && before.object === object.object ? {...old,...changedFields(before,object),id:serverId} : {...object,id:serverId};
+      // Migrated polygon labels must expose their actual shared-label position to the agent.
+      if (shape.type === 'board-object') {
+        const fields = projected as unknown as Record<string,unknown>;
+        const current = object as unknown as Record<string,unknown>;
+        for (const key of ['label','labelX','labelY','labelFontSize','labelColor','labelBackground']) {
+          if (key in current) fields[key]=current[key];else delete fields[key];
+        }
+      }
+      return projected;
     });
   }
   async function request(method:'GET'|'PUT', body?:unknown) {
@@ -55,6 +65,10 @@ export function connectBoard(editor:Editor, report:(message:string)=>void) {
   function load(state:SavedBoard) {
     editor.store.mergeRemoteChanges(()=>{
       if (state.document) loadSnapshot(editor.store,{document:state.document});
+      for (const record of editor.store.allRecords()) if (record.typeName === 'shape') {
+        const migration = polygonLabelMigration(record);
+        if (migration) { editor.updateShape(migration); pending=true;generation++; }
+      }
       editor.clearHistory();
     });
     base=new Map(state.projection.map(object=>[object.id,object]));

@@ -1,4 +1,5 @@
-import { readAttachedLabel, labelFields, labelFromObject, needsAttachedLabel } from "./attached-label.ts";
+import { labelFields, labelFromObject, needsAttachedLabel } from "./attached-label.ts";
+import { readShapeLabel, withoutPolygonLabel } from './polygon-label.ts';
 import { toRichText, createShapeId, getArrowBindings, getArrowTerminalsInArrowSpace, renderPlaintextFromRichText, type Editor, type TLDefaultColorStyle, type TLShape, type TLShapePartial } from "tldraw";
 import { boardPosition, boardProps, exactShapeObject, localBoardObject } from "./tldraw-board-model.ts";
 import type { BoardObjectSchemaType, StoredObjectSchemaType } from "./schemas";
@@ -28,13 +29,13 @@ export function nearestSize(value: number, sizes = widths): keyof typeof widths 
 }
 export function objectToShape(obj: StoredObjectSchemaType): TLShapePartial {
   const position = boardPosition(obj), bounds = boardProps(obj);
-  const attached = needsAttachedLabel(obj) ? labelFromObject(obj) : null;
+  const attached = (obj.object === 'polygon' ? obj.label !== undefined : needsAttachedLabel(obj)) ? labelFromObject(obj) : null;
   const meta = { boardId: obj.id, boardKind: obj.object, attachedLabel: attached };
   const style = { color: nearestColor(obj.strokeColor), size: nearestSize(obj.strokeWidth),
     fill: obj.fillColor === 'transparent' || obj.fillOpacity === 0 ? 'none' as const : 'solid' as const,
     dash: 'solid' as const };
-  if (obj.object === 'polygon') return { id: shapeId(obj.id), type: 'board-object', ...position, meta,
-    props: { ...bounds, ...style } };
+  if (obj.object === 'polygon') return { id: shapeId(obj.id), type: 'board-object', ...position,
+    meta: { ...meta, polygonLabelVersion: 1 }, props: { ...bounds, ...style, data: withoutPolygonLabel(bounds.data) } };
   if (obj.object === 'arrow') {
     const local = localBoardObject(bounds);
     if (local.object !== 'arrow') throw new Error('Expected arrow');
@@ -51,7 +52,7 @@ export function objectToShape(obj: StoredObjectSchemaType): TLShapePartial {
 
 export function shapeToObject(editor: Editor, shape: TLShape): BoardObjectSchemaType | null {
   const object = nativeShapeToObject(editor, shape);
-  const label = readAttachedLabel(shape);
+  const label = readShapeLabel(shape);
   return object && label ? { ...object, ...labelFields(label) } : object;
 }
 function nativeShapeToObject(editor: Editor, shape: TLShape): BoardObjectSchemaType | null {

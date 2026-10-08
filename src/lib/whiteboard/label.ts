@@ -1,5 +1,5 @@
-import { objectBounds } from "./geometry";
-import { StoredObjectSchemaType } from "./schemas";
+import { objectBounds } from "./geometry.ts";
+import type { StoredObjectSchemaType } from "./schemas";
 
 export const LABEL_FONT = 14;
 export const LABEL_COLOR = "#1f241c";
