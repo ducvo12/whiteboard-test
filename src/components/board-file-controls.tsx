@@ -5,7 +5,7 @@ import { getSnapshot, loadSnapshot, useEditor, useValue } from 'tldraw';
 import { validateDocument } from '@/lib/whiteboard/document-schema';
 import { UNSAVED_BOARD_KEY } from '@/lib/whiteboard/tldraw-sync';
 
-export function BoardFileControls() {
+export function useBoardFiles() {
   const editor=useEditor(), input=useRef<HTMLInputElement>(null);
   const [error,setError]=useState('');
   const readonly=useValue('board file readonly',()=>editor.getIsReadonly(),[editor]);
@@ -15,24 +15,21 @@ export function BoardFileControls() {
     try { localStorage.setItem(UNSAVED_BOARD_KEY,JSON.stringify(getSnapshot(editor.store).document)); } catch { /* Downloads work for boards larger than localStorage. */ }
     loadSnapshot(editor.store,{document});editor.clearHistory();editor.zoomToFit();setError('');
   }
-  return <>
-    <details><summary>Board file</summary><div className="board-file-menu">
-    <button onClick={()=>{
-      const blob=new Blob([JSON.stringify(getSnapshot(editor.store).document)],{type:'application/json'});
-      const url=URL.createObjectURL(blob), link=document.createElement('a');
-      link.href=url;link.download='whiteboard.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-    }}>Download board</button>
-    <button disabled={readonly} onClick={()=>input.current?.click()}>Restore board</button>
-    <button disabled={readonly} onClick={()=>{
-      try { const copy=localStorage.getItem(UNSAVED_BOARD_KEY);if(!copy)throw new Error('No recovery copy is available.');restore(copy); }
-      catch(error){setError(error instanceof Error ? error.message : 'Recovery failed.');}
-    }}>Recover copy</button>
-    </div></details>
+  function download() {
+    const blob=new Blob([JSON.stringify(getSnapshot(editor.store).document)],{type:'application/json'});
+    const url=URL.createObjectURL(blob), link=document.createElement('a');
+    link.href=url;link.download='whiteboard.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function recover() {
+    try { const copy=localStorage.getItem(UNSAVED_BOARD_KEY);if(!copy)throw new Error('No recovery copy is available.');restore(copy); }
+    catch(error){setError(error instanceof Error ? error.message : 'Recovery failed.');}
+  }
+  return { download, recover, readonly, restoreFile:()=>input.current?.click(), controls: <>
     <input hidden ref={input} type="file" accept="application/json,.json" aria-label="Restore board file" onChange={async event=>{
       const file=event.target.files?.[0];event.target.value='';if(!file)return;
       try {if(file.size>30_000_000)throw new Error('Board exceeds the 30 MB limit.');restore(await file.text());}
       catch(error){setError(error instanceof Error ? error.message : 'Restore failed.');}
     }}/>
-    {error && <p className="board-file-error" role="alert">{error}</p>}
-  </>;
+    {error && <div className="board-file-error" role="alert">{error} <button aria-label="Dismiss board file error" onClick={()=>setError('')}>Dismiss</button></div>}
+  </> };
 }

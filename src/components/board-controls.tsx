@@ -1,11 +1,9 @@
 "use client";
 
-import { BoardFileControls } from "./board-file-controls";
 import { AttachedLabels, LabelOptions } from "./attached-labels";
-import { useState } from "react";
+import { useBoardPreferences } from "./board-preferences";
 import { DefaultStylePanel, useEditor, useValue, type TLUiStylePanelProps } from "tldraw";
 import { BoardObjectSchema } from "@/lib/whiteboard/schemas";
-import { createBoardShape } from "@/lib/whiteboard/create-board-shape";
 import { objectToShape, shapeToObject } from "@/lib/whiteboard/tldraw-adapter";
 
 export function BoardStylePanel(props: TLUiStylePanelProps) {
@@ -14,12 +12,12 @@ export function BoardStylePanel(props: TLUiStylePanelProps) {
 
 export function BoardControls() {
   const editor = useEditor();
-  const [axes, setAxes] = useState(true);
+  const { axes } = useBoardPreferences();
   const state = useValue("board controls", () => {
     const shape = editor.getOnlySelectedShape();
     return { shape, object: shape?.type === "board-object" ? shapeToObject(editor, shape) : null,
       view: editor.getViewportPageBounds(), zoom: editor.getCamera().z,
-      pointer: editor.inputs.getCurrentPagePoint(), grid: editor.getInstanceState().isGridMode,
+      pointer: editor.inputs.getCurrentPagePoint(),
       readonly: editor.getIsReadonly() };
   }, [editor]);
   const { object, shape, view, zoom } = state;
@@ -52,14 +50,6 @@ export function BoardControls() {
       <line x1="0" x2="100%" y1={originY} y2={originY} />
       <text x={originX + 5} y={originY - 5}>(0, 0)</text>
     </svg>}
-    <div className="board-tools" onPointerDown={(event) => event.stopPropagation()}>
-      <details><summary>Add shape</summary><div className="board-add-menu">
-        {(["rect", "circle", "polygon", "arrow", "textbox"] as const).map((kind) => <button key={kind} disabled={state.readonly} onClick={(event) => { createBoardShape(editor, kind); const menu = event.currentTarget.closest("details"); if (menu) menu.open = false; }}>{kind === "rect" ? "Rectangle" : kind[0].toUpperCase() + kind.slice(1)}</button>)}
-      </div></details>
-      <BoardFileControls />
-      <button aria-pressed={state.grid} onClick={() => editor.updateInstanceState({ isGridMode: !state.grid })}>Grid</button>
-      <button aria-pressed={axes} onClick={() => setAxes(!axes)}>Axes</button>
-    </div>
     <output className="board-coordinates">({Math.round(state.pointer.x)}, {Math.round(-state.pointer.y)}) · Y ↑</output>
   </>;
 }

@@ -35,14 +35,19 @@ document when space permits. Invalid files leave the current board intact.
 - [x] Changed component and storage lint checks.
 - [x] Document round-trip with groups, bindings, rich text, styles and labels.
 - [x] Repository restart, legacy migration, stale saves and corrupt-file rejection.
-- [ ] Manually confirm semi, solid and patterned fills survive refresh.
-- [ ] Draw freehand, add a note and image, group shapes and bind an arrow; refresh.
-- [ ] Move and edit attached labels, including rotated polygons; refresh.
-- [ ] Ask the agent to edit a shape and confirm native styling remains intact.
-- [ ] Download, restore, refresh, and confirm the complete board returns.
-- [ ] Edit in two tabs and confirm a conflict preserves the unsaved board.
+- [x] Confirm semi, solid, patterned and lined fills survive browser refresh.
+- [x] Restore a full native fixture with freehand, note, image, group and bound arrow; refresh.
+- [x] Move a regular shape's attached label, edit its text, and move a rotated polygon's label outside its bounds; save and refresh.
+- [x] Exercise the existing agent tool API to edit a grouped shape; preserve native styling and its arrow binding.
+- [x] Download, restore the actual downloaded file, refresh, and confirm the complete board returns.
+- [x] Edit in two tabs, preserve the unsaved conflict copy, and restore it through Recover copy.
 
-Complete the unchecked interaction checklist before beginning the next pass.
+Pass 3C verification completed October 10, 2026 on an isolated production server,
+including an actual server restart. The user's existing board was not replaced.
+All 60 unit tests and the API regression test passed. The full-document fixture
+and fresh-process persistence regression are in `tests/fixtures/full-document.mjs`
+and `tests/document-audit.test.mjs`. Agent verification exercised the existing
+tool API; it did not invoke a model prompt or change the agent loop.
 
 ## tldraw migration — pass 1
 

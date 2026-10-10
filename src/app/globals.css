@@ -105,12 +105,9 @@ textarea:focus-visible {
 .board-axes { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .board-axes line { stroke: #344b2d; stroke-opacity: 0.2; stroke-width: 1; }
 .board-axes text { fill: #6f7668; font-size: 11px; }
-.board-tools, .board-properties, .board-coordinates { position: absolute; pointer-events: all; color: var(--ink); font-family: Arial, sans-serif; font-size: 12px; }
-.board-tools { z-index: 20; top: 48px; left: 12px; display: flex; gap: 4px; background: var(--paper-raised); padding: 4px; border: 1px solid var(--line); border-radius: 8px; }
-.board-tools button, .board-tools summary, .board-property-fields button { padding: 6px 8px; border-radius: 5px; cursor: pointer; }
-.board-tools button[aria-pressed="true"] { background: var(--olive-soft); }
-.board-add-menu { position: absolute; top: 100%; left: 0; display: grid; padding: 4px; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; }
-.board-add-menu button:hover, .board-property-fields button:hover { background: var(--olive-soft); }
+.board-properties, .board-coordinates { position: absolute; pointer-events: all; color: var(--ink); font-family: Arial, sans-serif; font-size: 12px; }
+.board-property-fields button { padding: 6px 8px; border-radius: 5px; cursor: pointer; }
+.board-property-fields button:hover { background: var(--olive-soft); }
 .board-properties { z-index: 20; top: 100px; left: 12px; width: 220px; max-height: calc(100% - 140px); overflow: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-raised); box-shadow: var(--shadow); }
 .board-properties summary { padding: 10px; cursor: pointer; text-transform: capitalize; font-weight: 600; }
 .board-property-fields { padding: 0 10px 10px; display: grid; gap: 6px; }
@@ -886,7 +883,4 @@ textarea::placeholder {
 .attached-label[data-selected="true"] { outline: 1px solid #4465e9; }
 .board-property-fields textarea { width: 100%; min-height: 60px; resize: vertical; }
 
-.board-tools { max-width: calc(100% - 24px); flex-wrap: wrap; }
-.board-file-error { flex-basis: 100%; max-width: 300px; margin: 0; color: #8b2252; }
-
-.board-file-menu { position: absolute; top: 38px; left: 0; width: 250px; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.board-file-error { position: absolute; z-index: 1000; top: 48px; left: 12px; max-width: 300px; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper-raised); color: #8b2252; }
